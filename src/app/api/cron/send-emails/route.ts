@@ -11,6 +11,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (process.env.DEV_MODE === "true") {
+    logger.info("DEV_MODE active — skipping email send", "send-emails");
+    return NextResponse.json({ message: "DEV_MODE active, no emails sent" });
+  }
+
   const supabase = createServiceClient();
 
   try {

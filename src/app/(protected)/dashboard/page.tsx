@@ -97,6 +97,9 @@ export default async function DashboardPage() {
                     </span>
                     <Badge className={statusColors[draft.status] ?? ""}>
                       {draft.status.replace("_", " ")}
+                      {process.env.DEV_MODE === "true" &&
+                        ["approved", "auto_approved"].includes(draft.status) &&
+                        " (paused)"}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       {new Date(draft.created_at).toLocaleDateString()}

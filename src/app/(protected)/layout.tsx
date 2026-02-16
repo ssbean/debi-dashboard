@@ -18,7 +18,13 @@ export default async function ProtectedLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col">
+      {process.env.DEV_MODE === "true" && (
+        <div className="bg-amber-500 text-amber-950 text-center text-sm font-medium py-1.5">
+          DEV MODE — Emails will not be sent
+        </div>
+      )}
+      <div className="flex flex-1">
       <aside className="w-56 border-r bg-muted/40 p-4">
         <div className="mb-8">
           <h2 className="text-lg font-semibold">Debi</h2>
@@ -59,6 +65,7 @@ export default async function ProtectedLayout({
           </div>
         </header>
         <main className="flex-1 p-6">{children}</main>
+      </div>
       </div>
     </div>
   );
