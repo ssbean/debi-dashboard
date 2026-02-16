@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { TriggersManager } from "./triggers-manager";
 import type { Trigger } from "@/lib/types";
 
 export default async function TriggersPage() {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data } = await supabase
     .from("triggers")

@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
@@ -15,7 +15,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data: drafts } = await supabase
     .from("drafts")

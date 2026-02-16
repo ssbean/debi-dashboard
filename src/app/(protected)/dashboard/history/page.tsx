@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Draft } from "@/lib/types";
 
 export default async function HistoryPage() {
-  const supabase = await createClient();
+  const supabase = createServiceClient();
 
   const { data } = await supabase
     .from("drafts")
