@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/poll-classify", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/generate-drafts", "schedule": "* * * * *" },
+    { "path": "/api/cron/send-emails", "schedule": "* * * * *" }
+  ]
+}

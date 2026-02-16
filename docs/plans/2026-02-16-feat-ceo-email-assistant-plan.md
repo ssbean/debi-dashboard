@@ -1,7 +1,7 @@
 ---
 title: "feat: CEO Email Assistant (Debi Dashboard)"
 type: feat
-status: active
+status: completed
 date: 2026-02-16
 deepened: 2026-02-16
 brainstorm: docs/brainstorms/2026-02-16-ceo-email-assistant-brainstorm.md
@@ -191,26 +191,26 @@ CREATE INDEX idx_triggers_enabled ON triggers(enabled, sort_order) WHERE deleted
 
 **Deliverables:** Scaffolded Next.js app, Google OAuth login with allowlist, Supabase connected, basic layout, logging infrastructure.
 
-- [ ] Initialize Next.js 15 + TypeScript project with App Router
-- [ ] Install dependencies: `next-auth`, `@supabase/ssr`, `@supabase/supabase-js`, `@anthropic-ai/sdk`, `googleapis`, `luxon`, `zod`, `tailwindcss`, `shadcn/ui`
-- [ ] Configure Auth.js v5 with Google provider (`app/auth.ts`)
+- [x] Initialize Next.js 15 + TypeScript project with App Router
+- [x] Install dependencies: `next-auth`, `@supabase/ssr`, `@supabase/supabase-js`, `@anthropic-ai/sdk`, `googleapis`, `luxon`, `zod`, `tailwindcss`, `shadcn/ui`
+- [x] Configure Auth.js v5 with Google provider (`app/auth.ts`)
   - Allowlist check in `signIn` callback against `ALLOWED_EMAILS` env var
   - JWT strategy (no database sessions needed for this scale)
   - Session timeout: 8h max, 30min inactivity
-- [ ] Set up Supabase project and create database schema (migration SQL)
+- [x] Set up Supabase project and create database schema (migration SQL)
   - `app/lib/supabase/server.ts` — server client using `createServerClient` from `@supabase/ssr`
   - `app/lib/supabase/client.ts` — browser client using `createBrowserClient` from `@supabase/ssr`
   - Include all indexes and CHECK constraints from schema above
   - Seed singleton settings row: `INSERT INTO settings (id, ceo_email, company_domains) VALUES (1, '...', '...')`
-- [ ] Create middleware for auth protection (`middleware.ts`)
+- [x] Create middleware for auth protection (`middleware.ts`)
   - Protect all routes except `/login` and `/api/auth/*` and `/api/cron/*`
   - Add rate limiting (simple in-memory for v1)
-- [ ] Add security headers in `next.config.js`: CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff, HSTS, Referrer-Policy
-- [ ] Build basic layout: sidebar nav (Dashboard, Triggers, Settings), header with user info + logout
-- [ ] Create shared types (`app/lib/types.ts`) — Draft, Trigger, Settings, ClassificationResult, DraftResult interfaces
-- [ ] Create error handling utilities (`app/lib/errors.ts`) — typed errors for Gmail, Claude, scheduling
-- [ ] Create logger utility (`app/lib/logger.ts`) — structured logging for cron jobs and API routes
-- [ ] Create `.env.local` template and `.env.example`
+- [x] Add security headers in `next.config.js`: CSP, X-Frame-Options DENY, X-Content-Type-Options nosniff, HSTS, Referrer-Policy
+- [x] Build basic layout: sidebar nav (Dashboard, Triggers, Settings), header with user info + logout
+- [x] Create shared types (`app/lib/types.ts`) — Draft, Trigger, Settings, ClassificationResult, DraftResult interfaces
+- [x] Create error handling utilities (`app/lib/errors.ts`) — typed errors for Gmail, Claude, scheduling
+- [x] Create logger utility (`app/lib/logger.ts`) — structured logging for cron jobs and API routes
+- [x] Create `.env.local` template and `.env.example`
 
 ```
 # .env.example
@@ -253,13 +253,13 @@ CRON_SECRET=
 
 > **Research insight:** Classification and draft generation MUST be separate cron jobs. Running both sequentially on 20 emails would exceed Vercel's 60s timeout (20 × 3s classification + 20 × 5s drafting = 160s). Split into poll-and-classify + generate-drafts.
 
-- [ ] Build Gmail service (`app/lib/gmail.ts`)
+- [x] Build Gmail service (`app/lib/gmail.ts`)
   - `getGmailClient(userEmail)` — JWT auth with service account impersonation
   - `fetchNewEmails(since: Date)` — list unread emails from internal domains
   - `getEmailContent(messageId)` — fetch full email body, extract sender/subject/body
   - `sendEmail(to, subject, body, threadId?)` — send as CEO (used later in Phase 4)
   - Implement exponential backoff on 429 errors (1s, 2s, 4s, max 3 retries)
-- [ ] Build classifier service (`app/lib/claude.ts`)
+- [x] Build classifier service (`app/lib/claude.ts`)
   - `classifyEmail(emailContent, triggers[])` — returns `{ triggerId, confidence, recipientEmail, recipientName }` or `null`
   - **Use Claude Sonnet for classification** (not Opus — 80% cheaper, sufficient accuracy for trigger matching)
   - Prompt caching: place system instructions + trigger descriptions in `system` array with `cache_control: { type: 'ephemeral' }` — saves 90% on repeated calls
@@ -278,7 +278,7 @@ CRON_SECRET=
     });
     ```
   - **Important**: `output_config.format` (not `output_format`) — changed in 2026. Changing schema invalidates cache, so keep stable.
-- [ ] Build poll-and-classify cron route (`app/api/cron/poll-classify/route.ts`)
+- [x] Build poll-and-classify cron route (`app/api/cron/poll-classify/route.ts`)
   - Verify `CRON_SECRET` authorization header
   - Fetch settings (company domains, CEO email) — cache in-memory for 60s
   - Call `fetchNewEmails` filtered to internal domains only
@@ -293,14 +293,14 @@ CRON_SECRET=
   - Use Supabase RPC for atomic draft+dedup insertion (single transaction)
   - Handle errors per-email (don't let one failure stop the batch)
   - Log metrics: emails scanned, matched, errors, cache hit rate
-- [ ] Build basic read-only dashboard (`app/(protected)/dashboard/page.tsx`)
+- [x] Build basic read-only dashboard (`app/(protected)/dashboard/page.tsx`)
   - Server Component, fetches drafts using Supabase join to avoid N+1:
     ```typescript
     const { data } = await supabase.from('drafts').select('*, trigger:triggers(name, email_type)').order('created_at', { ascending: false });
     ```
   - Show draft list: status, recipient, subject, confidence, created time
   - Manual refresh (no real-time for v1)
-- [ ] Configure `vercel.json` with cron schedule
+- [x] Configure `vercel.json` with cron schedule
 
 ```json
 {
@@ -310,7 +310,7 @@ CRON_SECRET=
 }
 ```
 
-- [ ] Add `maxDuration = 60` export to cron route (Vercel Pro plan)
+- [x] Add `maxDuration = 60` export to cron route (Vercel Pro plan)
 
 **Files:**
 - `app/lib/gmail.ts`
@@ -334,14 +334,14 @@ CRON_SECRET=
 
 **Deliverables:** AI drafts emails in CEO's style, assigns randomized send times, EA can edit/approve/reject.
 
-- [ ] Build draft generation cron (`app/api/cron/generate-drafts/route.ts`)
+- [x] Build draft generation cron (`app/api/cron/generate-drafts/route.ts`)
   - Runs every minute: `"* * * * *"`
   - Pick up drafts with `status = 'needs_drafting'`, limit 5 per cycle
   - **Use Claude Opus for drafting** (higher quality for CEO voice matching)
   - Prompt caching on style examples: place in `system` array with `cache_control: { type: 'ephemeral' }`
   - Fetch style examples for matched trigger (limit to 5 most recent)
   - On success: update draft with subject, body, confidence, `scheduled_send_at`, status → `pending_review` or `auto_approved`
-- [ ] Build scheduler utility (`app/lib/scheduler.ts`)
+- [x] Build scheduler utility (`app/lib/scheduler.ts`)
   - `calculateSendTime(triggerReceivedAt, settings)` — returns randomized time 4-6 business hours later
   - **Use Luxon** for timezone-aware calculations:
     ```typescript
@@ -352,20 +352,20 @@ CRON_SECRET=
   - Holiday check against `settings.holidays` array
   - Apply jitter: randomize within the 4-6 hour window (not fixed offset)
   - Space out multiple sends: no two sends within 15 minutes of each other (query existing scheduled drafts)
-- [ ] Seed data: SQL script or admin endpoint to upload initial style examples per trigger
-- [ ] Upgrade dashboard to full approval workflow:
+- [x] Seed data: SQL script or admin endpoint to upload initial style examples per trigger
+- [x] Upgrade dashboard to full approval workflow:
   - Draft detail/edit view (`app/(protected)/dashboard/[id]/page.tsx`)
   - Editable fields: recipient, subject, body
   - Single confidence score display
   - Trigger email context (what triggered this draft)
   - Actions: Approve, Reject, Save Edits
   - Send time display with manual override option
-- [ ] Approval API route (`app/api/drafts/[id]/approve/route.ts`)
+- [x] Approval API route (`app/api/drafts/[id]/approve/route.ts`)
   - If EA edited the draft: store original body in `original_body`, store edited version as new `style_example` (source: "edited")
   - Set status to `approved`, record `approved_by_email` from JWT
   - **No diff analysis or rule extraction for v1** — just save the edited draft as an example
-- [ ] Reject API route (`app/api/drafts/[id]/reject/route.ts`)
-- [ ] Auto-approval logic in generate-drafts cron:
+- [x] Reject API route (`app/api/drafts/[id]/reject/route.ts`)
+- [x] Auto-approval logic in generate-drafts cron:
   - If confidence >= threshold AND recipient present: `status = 'auto_approved'`
   - If confidence < threshold OR no recipient: `status = 'pending_review'`
   - Borderline buffer: scores within 5 points of threshold always go to `pending_review`
@@ -397,19 +397,19 @@ CRON_SECRET=
 
 **Deliverables:** Approved emails are sent at scheduled time. Auto-send for high-confidence drafts.
 
-- [ ] Build send worker cron (`app/api/cron/send-emails/route.ts`)
+- [x] Build send worker cron (`app/api/cron/send-emails/route.ts`)
   - Runs every minute: `"* * * * *"`
   - Query drafts where `status IN ('approved', 'auto_approved') AND scheduled_send_at <= NOW() AND scheduled_send_at IS NOT NULL AND sent_at IS NULL`
   - For each: call `sendEmail` via Gmail API
   - On success: update `status = 'sent'`, set `sent_at`
   - On failure: increment `send_attempts`, update `send_error`; if `send_attempts >= 3`, mark `failed`
   - Verify `CRON_SECRET` header
-- [ ] **Race condition protection (simplified):**
+- [x] **Race condition protection (simplified):**
   - When EA opens a draft for editing, set `scheduled_send_at = null` (pauses sending)
   - Send worker only queries drafts where `scheduled_send_at IS NOT NULL`
   - On approve, EA sets new `scheduled_send_at` (or keeps existing)
   - No locks, no expiry, no race conditions
-- [ ] Gmail quota awareness: log quota usage per day; if approaching 80% of 10K daily units, reduce batch size
+- [x] Gmail quota awareness: log quota usage per day; if approaching 80% of 10K daily units, reduce batch size
 
 ```json
 {
@@ -433,33 +433,33 @@ CRON_SECRET=
 
 **Deliverables:** EA can manage triggers and system settings. Production readiness.
 
-- [ ] Trigger management page (`app/(protected)/admin/triggers/page.tsx`)
+- [x] Trigger management page (`app/(protected)/admin/triggers/page.tsx`)
   - List all triggers with enable/disable toggle
   - Add new trigger: name, natural language description, email type, reply-in-thread toggle
   - Edit existing trigger
   - Delete trigger (soft delete — `UPDATE deleted_at = now()`, hidden from list)
   - Reorder triggers (drag or up/down buttons)
-- [ ] Settings page (`app/(protected)/settings/page.tsx`)
+- [x] Settings page (`app/(protected)/settings/page.tsx`)
   - Confidence threshold slider (0-100) with explanation
   - CEO timezone selector
   - Business hours start/end
   - Company domains (comma-separated text input)
   - Holiday management (add/remove dates)
   - Use `.maybeSingle()` for settings queries (graceful null handling)
-- [ ] Style examples management per trigger
+- [x] Style examples management per trigger
   - View existing examples (including EA-edited ones)
   - Add new example (paste in a real CEO email)
   - Delete example
-- [ ] Settings API routes
+- [x] Settings API routes
   - `app/api/settings/route.ts` — GET/PUT
   - `app/api/triggers/route.ts` — GET/POST
   - `app/api/triggers/[id]/route.ts` — PUT/DELETE
-- [ ] System health indicator on dashboard: last successful poll time, pending draft count, errors in last 24h
-- [ ] Sent emails history view with search/filter
-- [ ] Stale draft warnings (drafts older than 7 days in `pending_review`)
-- [ ] Error notification: if polling or sending fails 3+ times, show banner on dashboard
-- [ ] Loading states, error boundaries, empty states throughout UI
-- [ ] Deploy to Vercel with environment variables configured
+- [x] System health indicator on dashboard: last successful poll time, pending draft count, errors in last 24h
+- [x] Sent emails history view with search/filter
+- [x] Stale draft warnings (drafts older than 7 days in `pending_review`)
+- [x] Error notification: if polling or sending fails 3+ times, show banner on dashboard
+- [x] Loading states, error boundaries, empty states throughout UI
+- [x] Deploy to Vercel with environment variables configured
 
 **Files:**
 - `app/(protected)/admin/triggers/page.tsx`
@@ -481,41 +481,41 @@ CRON_SECRET=
 
 ### Functional Requirements
 
-- [ ] EA can log in with Google OAuth; non-allowlisted users are rejected
-- [ ] System polls CEO Gmail every 5 minutes for unread internal emails
-- [ ] Trigger emails are classified against natural-language descriptions using Claude Sonnet
-- [ ] Matched triggers produce AI-drafted emails in the CEO's writing style using Claude Opus
-- [ ] Drafts appear on dashboard with recipient, subject, body, confidence score, and scheduled send time
-- [ ] EA can edit any field (recipient, subject, body) and approve or reject
-- [ ] Approved emails send at the scheduled time via Gmail API impersonation
-- [ ] EA edits are saved as new style examples for future drafting
-- [ ] Confidence threshold slider controls auto-send behavior
-- [ ] EA can add, edit, enable/disable triggers through admin UI
-- [ ] Send times are randomized 4-6 business hours out, respecting timezone and holidays
-- [ ] No duplicate processing of the same email
-- [ ] Drafts with missing recipients require EA to fill in before approval
+- [x] EA can log in with Google OAuth; non-allowlisted users are rejected
+- [x] System polls CEO Gmail every 5 minutes for unread internal emails
+- [x] Trigger emails are classified against natural-language descriptions using Claude Sonnet
+- [x] Matched triggers produce AI-drafted emails in the CEO's writing style using Claude Opus
+- [x] Drafts appear on dashboard with recipient, subject, body, confidence score, and scheduled send time
+- [x] EA can edit any field (recipient, subject, body) and approve or reject
+- [x] Approved emails send at the scheduled time via Gmail API impersonation
+- [x] EA edits are saved as new style examples for future drafting
+- [x] Confidence threshold slider controls auto-send behavior
+- [x] EA can add, edit, enable/disable triggers through admin UI
+- [x] Send times are randomized 4-6 business hours out, respecting timezone and holidays
+- [x] No duplicate processing of the same email
+- [x] Drafts with missing recipients require EA to fill in before approval
 
 ### Non-Functional Requirements
 
-- [ ] Poll-classify cron completes within 30 seconds (leave buffer under 60s Vercel limit)
-- [ ] Generate-drafts cron completes within 30 seconds
-- [ ] Dashboard loads in under 2 seconds
-- [ ] All API keys and credentials stored in environment variables, never in code
-- [ ] Cron routes protected by `CRON_SECRET`
-- [ ] Security headers present: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
-- [ ] Draft content stored in Supabase with TLS in transit
-- [ ] Claude API prompt caching active (monitor `cache_read_input_tokens` in responses)
+- [x] Poll-classify cron completes within 30 seconds (leave buffer under 60s Vercel limit)
+- [x] Generate-drafts cron completes within 30 seconds
+- [x] Dashboard loads in under 2 seconds
+- [x] All API keys and credentials stored in environment variables, never in code
+- [x] Cron routes protected by `CRON_SECRET`
+- [x] Security headers present: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+- [x] Draft content stored in Supabase with TLS in transit
+- [x] Claude API prompt caching active (monitor `cache_read_input_tokens` in responses)
 
 ## Dependencies & Prerequisites
 
-- [ ] Google Cloud project with Gmail API enabled
-- [ ] Google Service Account with domain-wide delegation configured
+- [x] Google Cloud project with Gmail API enabled
+- [x] Google Service Account with domain-wide delegation configured
   - Scopes: `https://www.googleapis.com/auth/gmail.readonly`, `https://www.googleapis.com/auth/gmail.send`
-- [ ] Google OAuth client (web application type) configured with redirect URI
-- [ ] Supabase project created
-- [ ] Anthropic API key
-- [ ] Vercel Pro plan (for 5-min cron and 60s function timeout)
-- [ ] 5-10 example CEO emails per email type for style seeding
+- [x] Google OAuth client (web application type) configured with redirect URI
+- [x] Supabase project created
+- [x] Anthropic API key
+- [x] Vercel Pro plan (for 5-min cron and 60s function timeout)
+- [x] 5-10 example CEO emails per email type for style seeding
 
 ## Risk Analysis & Mitigation
 
@@ -551,16 +551,16 @@ From brainstorm (2026-02-16) + deepening research:
 
 ## Security Checklist (Pre-Production)
 
-- [ ] Security headers configured (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
-- [ ] All environment variables in Vercel encrypted storage
-- [ ] Cron routes verify `CRON_SECRET` authorization header
-- [ ] Rate limiting on API routes
-- [ ] Session timeout configured (8h max, 30min inactivity)
-- [ ] CSRF protection via Auth.js + SameSite cookies
-- [ ] `ALLOWED_EMAILS` checked on every auth callback
-- [ ] No secrets in client-side code (`NEXT_PUBLIC_*` only for Supabase URL/anon key)
-- [ ] Gmail API: domain-wide delegation scoped to minimum (readonly + send only)
-- [ ] Anthropic API: monitor daily spend, set `max_tokens` limits on all calls
+- [x] Security headers configured (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy)
+- [x] All environment variables in Vercel encrypted storage
+- [x] Cron routes verify `CRON_SECRET` authorization header
+- [x] Rate limiting on API routes
+- [x] Session timeout configured (8h max, 30min inactivity)
+- [x] CSRF protection via Auth.js + SameSite cookies
+- [x] `ALLOWED_EMAILS` checked on every auth callback
+- [x] No secrets in client-side code (`NEXT_PUBLIC_*` only for Supabase URL/anon key)
+- [x] Gmail API: domain-wide delegation scoped to minimum (readonly + send only)
+- [x] Anthropic API: monitor daily spend, set `max_tokens` limits on all calls
 
 ## References
 
