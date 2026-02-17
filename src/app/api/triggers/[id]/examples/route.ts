@@ -40,7 +40,7 @@ export async function POST(
     .from("style_examples")
     .insert({
       trigger_id: id,
-      subject: body.subject,
+      subject: body.subject ?? "",
       body: body.body,
       source: "seed",
     })
