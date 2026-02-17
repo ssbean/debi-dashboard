@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
 
     // Process in batches of 5
     const BATCH_SIZE = 5;
-    for (let i = 0; i < Math.min(emails.length, 20); i += BATCH_SIZE) {
+    for (let i = 0; i < emails.length; i += BATCH_SIZE) {
       const batch = emails.slice(i, i + BATCH_SIZE);
       await Promise.all(
         batch.map(async (email) => {
