@@ -77,6 +77,18 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>CEO Email</Label>
+            <Input
+              type="email"
+              value={settings.ceo_email}
+              onChange={(e) => setSettings((s) => ({ ...s, ceo_email: e.target.value }))}
+              placeholder="ceo@company.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              The Gmail inbox to monitor for incoming emails.
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>CEO Timezone</Label>
             <Input
               value={settings.ceo_timezone}
