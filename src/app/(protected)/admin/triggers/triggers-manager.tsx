@@ -22,6 +22,11 @@ import type { Trigger, StyleExample } from "@/lib/types";
 export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[] }) {
   const router = useRouter();
   const [triggers, setTriggers] = useState(initialTriggers);
+
+  // Sync with server data after router.refresh()
+  useEffect(() => {
+    setTriggers(initialTriggers);
+  }, [initialTriggers]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrigger, setEditingTrigger] = useState<Trigger | null>(null);
 

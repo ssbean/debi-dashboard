@@ -14,7 +14,7 @@ const TriggerUpdateSchema = z.object({
   reply_window_max_hours: z.number().positive().optional(),
   enabled: z.boolean().optional(),
   sort_order: z.number().int().min(0).optional(),
-}).refine(
+}).strip().refine(
   (data) => data.match_mode !== "gmail_filter" || (data.gmail_filter_query && data.gmail_filter_query.length > 0),
   { message: "Gmail filter query is required for gmail_filter mode", path: ["gmail_filter_query"] },
 );
