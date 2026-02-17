@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const startTime = Date.now();
 
   try {
+    console.log("STEP:1 fetching settings");
     // Fetch settings
     const { data: settings } = await supabase
       .from("settings")
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Settings not configured" }, { status: 500 });
     }
 
+    console.log("STEP:2 fetching triggers");
     // Fetch enabled triggers
     const { data: triggers } = await supabase
       .from("triggers")
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "No active triggers" });
     }
 
+    console.log("STEP:3 fetching emails, ceo:", settings.ceo_email, "domains:", settings.company_domains);
     // Fetch emails from last 10 minutes (overlap to avoid missing)
     const since = new Date(Date.now() - 10 * 60 * 1000);
     const domains = settings.company_domains.split(",").map((d: string) => d.trim());
@@ -119,9 +122,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ emailsScanned: emails.length, processed, matched, errors });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
-    console.error("POLL-CLASSIFY FAILED:", message);
-    if (stack) console.error("STACK:", stack);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const code = (error as { code?: number })?.code;
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    console.error("CRON_ERR", JSON.stringify({ msg: message.slice(0, 200), code, status }));
+    return NextResponse.json({ error: message, code, status }, { status: 500 });
   }
 }
