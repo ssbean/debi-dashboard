@@ -9,6 +9,7 @@ function getGmailClient(userEmail: string) {
     scopes: [
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/gmail.send",
+      "https://www.googleapis.com/auth/gmail.settings.basic",
     ],
     subject: userEmail,
   });
@@ -208,6 +209,31 @@ export async function getLatestThreadMessageId(
   return messageIdHeader?.value ?? null;
 }
 
+export async function getSignature(ceoEmail: string): Promise<string | null> {
+  const gmail = getGmailClient(ceoEmail);
+
+  try {
+    const res = await withRetry(() =>
+      gmail.users.settings.sendAs.get({
+        userId: "me",
+        sendAsEmail: ceoEmail,
+      }),
+    );
+    return res.data.signature || null;
+  } catch (error) {
+    logger.warn("Failed to fetch email signature", "gmail", { error: String(error) });
+    return null;
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+}
+
 export async function sendEmail(
   ceoEmail: string,
   to: string,
@@ -218,15 +244,19 @@ export async function sendEmail(
 ) {
   const gmail = getGmailClient(ceoEmail);
 
+  const signature = await getSignature(ceoEmail);
+
   const replySubject =
     threadId && !subject.toLowerCase().startsWith("re:")
       ? `Re: ${subject}`
       : subject;
 
+  const htmlBody = `<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
+
   const headers = [
     `To: ${to}`,
     `Subject: ${replySubject}`,
-    `Content-Type: text/plain; charset=utf-8`,
+    `Content-Type: text/html; charset=utf-8`,
   ];
 
   if (inReplyTo) {
@@ -234,7 +264,7 @@ export async function sendEmail(
     headers.push(`References: ${inReplyTo}`);
   }
 
-  const message = [...headers, "", body].join("\r\n");
+  const message = [...headers, "", htmlBody].join("\r\n");
 
   const encodedMessage = Buffer.from(message)
     .toString("base64")
