@@ -13,8 +13,8 @@ import type { Draft } from "@/lib/types";
 
 export function DraftEditor({ draft }: { draft: Draft }) {
   const router = useRouter();
-  const [recipientEmail, setRecipientEmail] = useState(draft.recipient_email ?? "");
-  const [subject, setSubject] = useState(draft.subject ?? "");
+  const recipientEmail = draft.recipient_email ?? "";
+  const subject = draft.subject ?? "";
   const [body, setBody] = useState(draft.body ?? "");
   const [loading, setLoading] = useState(false);
 
@@ -26,11 +26,7 @@ export function DraftEditor({ draft }: { draft: Draft }) {
       const res = await fetch(`/api/drafts/${draft.id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipient_email: recipientEmail,
-          subject,
-          body,
-        }),
+        body: JSON.stringify({ body }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -82,9 +78,8 @@ export function DraftEditor({ draft }: { draft: Draft }) {
             <Input
               id="recipient"
               value={recipientEmail}
-              onChange={(e) => setRecipientEmail(e.target.value)}
-              disabled={!canEdit}
-              placeholder="recipient@company.com"
+              disabled
+              className="bg-muted"
             />
           </div>
           <div className="space-y-2">
@@ -92,8 +87,8 @@ export function DraftEditor({ draft }: { draft: Draft }) {
             <Input
               id="subject"
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              disabled={!canEdit}
+              disabled
+              className="bg-muted"
             />
           </div>
           <div className="space-y-2">
@@ -116,7 +111,7 @@ export function DraftEditor({ draft }: { draft: Draft }) {
 
       {canEdit && (
         <div className="flex gap-3">
-          <Button onClick={() => handleAction("approve")} disabled={loading || !recipientEmail}>
+          <Button onClick={() => handleAction("approve")} disabled={loading}>
             Approve & Schedule
           </Button>
           <Button variant="destructive" onClick={() => handleAction("reject")} disabled={loading}>

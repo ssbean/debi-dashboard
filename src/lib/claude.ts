@@ -18,7 +18,7 @@ const ClassificationSchema = z.object({
 
 // Draft schema
 const DraftSchema = z.object({
-  subject: z.string(),
+  subject: z.string().optional(),
   body: z.string(),
 });
 
@@ -133,7 +133,8 @@ export async function draftEmail(
 Email type: ${trigger.email_type}
 Trigger: ${trigger.name} — ${trigger.description}
 
-Respond with a JSON object: { "subject": "...", "body": "..." }`,
+Respond with a JSON object: { "body": "..." }
+The subject line is handled automatically — only generate the email body.`,
           cache_control: { type: "ephemeral" },
         },
         {

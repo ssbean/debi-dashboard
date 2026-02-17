@@ -107,13 +107,11 @@ export async function GET(req: NextRequest) {
         const threshold = settings.confidence_threshold as number;
         const confidence = draft.confidence_score as number;
         const borderlineBuffer = 5;
-        const hasRecipient = !!draft.recipient_email;
 
         let newStatus: string;
         if (
           confidence >= threshold &&
-          confidence >= threshold + borderlineBuffer &&
-          hasRecipient
+          confidence >= threshold + borderlineBuffer
         ) {
           newStatus = "auto_approved";
           autoApproved++;
@@ -124,10 +122,16 @@ export async function GET(req: NextRequest) {
 
         totalConfidence += confidence;
 
+        // Auto-generate reply subject and recipient
+        const replySubject = draft.trigger_email_subject.toLowerCase().startsWith("re:")
+          ? draft.trigger_email_subject
+          : `Re: ${draft.trigger_email_subject}`;
+
         await supabase
           .from("drafts")
           .update({
-            subject: result.subject,
+            subject: replySubject,
+            recipient_email: draft.trigger_email_from,
             body: result.body,
             original_body: result.body,
             status: newStatus,

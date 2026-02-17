@@ -14,10 +14,10 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { recipient_email, subject, body } = await req.json();
+  const { body } = await req.json();
 
-  if (!recipient_email || !subject || !body) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  if (!body) {
+    return NextResponse.json({ error: "Body is required" }, { status: 400 });
   }
 
   const supabase = createServiceClient();
@@ -68,12 +68,10 @@ export async function POST(
     }
   }
 
-  // Update draft
+  // Update draft — recipient and subject are auto-generated, only body can change
   await supabase
     .from("drafts")
     .update({
-      recipient_email,
-      subject,
       body,
       original_body: wasEdited ? draft.body : draft.original_body,
       status: "approved",
@@ -87,7 +85,7 @@ export async function POST(
   if (wasEdited) {
     await supabase.from("style_examples").insert({
       trigger_id: draft.trigger_id,
-      subject,
+      subject: draft.subject,
       body,
       source: "edited",
     });
