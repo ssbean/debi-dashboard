@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { fetchNewEmails } from "@/lib/gmail";
 import { classifyEmail } from "@/lib/claude";
 import { logger } from "@/lib/logger";
+import { logCronRun } from "@/lib/cron-logger";
 import type { Trigger } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServiceClient();
-  const startTime = Date.now();
+  const startedAt = new Date();
 
   try {
     // Fetch settings
@@ -48,14 +49,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "No active triggers" });
     }
 
-    // Fetch emails from last 10 minutes (overlap to avoid missing)
-    const since = new Date(Date.now() - 10 * 60 * 1000);
+    // Fetch emails from last 70 minutes (overlap to avoid missing with hourly schedule)
+    const since = new Date(Date.now() - 70 * 60 * 1000);
     const domains = settings.company_domains.split(",").map((d: string) => d.trim());
     const emails = await fetchNewEmails(settings.ceo_email, since, domains);
 
     let processed = 0;
     let matched = 0;
     let errors = 0;
+    let duplicatesSkipped = 0;
+    let totalConfidence = 0;
+    let confidenceCount = 0;
+    const byTrigger: Record<string, number> = {};
 
     // Process in batches of 5
     const BATCH_SIZE = 5;
@@ -71,7 +76,10 @@ export async function GET(req: NextRequest) {
               .eq("gmail_message_id", email.messageId)
               .maybeSingle();
 
-            if (existing) return;
+            if (existing) {
+              duplicatesSkipped++;
+              return;
+            }
 
             // Classify
             const result = await classifyEmail(
@@ -90,6 +98,17 @@ export async function GET(req: NextRequest) {
             processed++;
 
             if (result.matched && result.trigger_id) {
+              if (result.confidence !== undefined) {
+                totalConfidence += result.confidence;
+                confidenceCount++;
+              }
+
+              // Count by trigger name
+              const triggerObj = (triggers as Trigger[]).find(t => t.id === result.trigger_id);
+              if (triggerObj) {
+                byTrigger[triggerObj.name] = (byTrigger[triggerObj.name] ?? 0) + 1;
+              }
+
               // Insert draft with needs_drafting status
               await supabase.from("drafts").insert({
                 trigger_id: result.trigger_id,
@@ -115,18 +134,34 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const duration = Date.now() - startTime;
+    const avgConfidence = confidenceCount > 0 ? Math.round(totalConfidence / confidenceCount) : 0;
+    const matchRate = processed > 0 ? Math.round((matched / processed) * 100) / 100 : 0;
+
+    const stats = {
+      emails_scanned: emails.length,
+      duplicates_skipped: duplicatesSkipped,
+      emails_processed: processed,
+      emails_matched: matched,
+      match_rate: matchRate,
+      avg_confidence: avgConfidence,
+      by_trigger: byTrigger,
+      errors,
+    };
+
     logger.info("Poll-classify completed", "poll-classify", {
       emailsScanned: emails.length,
       processed,
       matched,
       errors,
-      durationMs: duration,
+      durationMs: Date.now() - startedAt.getTime(),
     });
+
+    await logCronRun(supabase, "poll-classify", startedAt, "success", stats);
 
     return NextResponse.json({ emailsScanned: emails.length, processed, matched, errors });
   } catch (error) {
     logger.error("Poll-classify failed", "poll-classify", { error: String(error) });
+    await logCronRun(supabase, "poll-classify", startedAt, "error", { errors: 1 }, String(error));
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

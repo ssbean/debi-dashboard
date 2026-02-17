@@ -3,6 +3,7 @@ import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/gmail";
 import { logger } from "@/lib/logger";
+import { logCronRun } from "@/lib/cron-logger";
 
 export const maxDuration = 60;
 
@@ -11,12 +12,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const supabase = createServiceClient();
+  const startedAt = new Date();
+
   if (process.env.DEV_MODE === "true") {
     logger.info("DEV_MODE active — skipping email send", "send-emails");
+    await logCronRun(supabase, "send-emails", startedAt, "success", {
+      emails_sent: 0,
+      emails_failed: 0,
+      errors: 0,
+    });
     return NextResponse.json({ message: "DEV_MODE active, no emails sent" });
   }
-
-  const supabase = createServiceClient();
 
   try {
     const { data: settings } = await supabase
@@ -40,6 +47,11 @@ export async function GET(req: NextRequest) {
       .limit(10);
 
     if (!drafts?.length) {
+      await logCronRun(supabase, "send-emails", startedAt, "success", {
+        emails_sent: 0,
+        emails_failed: 0,
+        errors: 0,
+      });
       return NextResponse.json({ message: "No emails to send" });
     }
 
@@ -96,10 +108,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const stats = {
+      emails_sent: sent,
+      emails_failed: failed,
+      errors: failed,
+    };
+
     logger.info("Send-emails completed", "send-emails", { sent, failed });
+    await logCronRun(supabase, "send-emails", startedAt, "success", stats);
+
     return NextResponse.json({ sent, failed });
   } catch (error) {
     logger.error("Send-emails failed", "send-emails", { error: String(error) });
+    await logCronRun(supabase, "send-emails", startedAt, "error", { errors: 1 }, String(error));
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

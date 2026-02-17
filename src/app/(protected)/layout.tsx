@@ -6,6 +6,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/admin/triggers", label: "Triggers" },
   { href: "/dashboard/history", label: "History" },
+  { href: "/admin/cron-logs", label: "Logs" },
   { href: "/settings", label: "Settings" },
 ];
 

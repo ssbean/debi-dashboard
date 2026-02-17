@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { draftEmail } from "@/lib/claude";
 import { calculateSendTime } from "@/lib/scheduler";
 import { logger } from "@/lib/logger";
+import { logCronRun } from "@/lib/cron-logger";
 import type { Settings, Trigger, StyleExample } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServiceClient();
+  const startedAt = new Date();
 
   try {
     // Fetch settings
@@ -35,6 +37,14 @@ export async function GET(req: NextRequest) {
       .limit(5);
 
     if (!drafts?.length) {
+      await logCronRun(supabase, "generate-drafts", startedAt, "success", {
+        drafts_generated: 0,
+        auto_approved: 0,
+        pending_review: 0,
+        queue_remaining: 0,
+        avg_confidence: 0,
+        errors: 0,
+      });
       return NextResponse.json({ message: "No drafts to generate" });
     }
 
@@ -51,7 +61,10 @@ export async function GET(req: NextRequest) {
       .map((t) => new Date(t));
 
     let generated = 0;
+    let autoApproved = 0;
+    let pendingReview = 0;
     let errors = 0;
+    let totalConfidence = 0;
 
     for (const draft of drafts) {
       try {
@@ -96,9 +109,13 @@ export async function GET(req: NextRequest) {
           hasRecipient
         ) {
           newStatus = "auto_approved";
+          autoApproved++;
         } else {
           newStatus = "pending_review";
+          pendingReview++;
         }
+
+        totalConfidence += confidence;
 
         await supabase
           .from("drafts")
@@ -121,10 +138,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Query remaining needs_drafting count
+    const { count: queueRemaining } = await supabase
+      .from("drafts")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "needs_drafting");
+
+    const avgConfidence = generated > 0 ? Math.round(totalConfidence / generated) : 0;
+
+    const stats = {
+      drafts_generated: generated,
+      auto_approved: autoApproved,
+      pending_review: pendingReview,
+      queue_remaining: queueRemaining ?? 0,
+      avg_confidence: avgConfidence,
+      errors,
+    };
+
     logger.info("Generate-drafts completed", "generate-drafts", { generated, errors });
+    await logCronRun(supabase, "generate-drafts", startedAt, "success", stats);
+
     return NextResponse.json({ generated, errors });
   } catch (error) {
     logger.error("Generate-drafts failed", "generate-drafts", { error: String(error) });
+    await logCronRun(supabase, "generate-drafts", startedAt, "error", { errors: 1 }, String(error));
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
