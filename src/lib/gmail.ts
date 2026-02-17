@@ -138,6 +138,50 @@ export async function fetchFilteredEmailIds(
   return res.data.messages.map((m) => m.id).filter((id): id is string => !!id);
 }
 
+export interface FilterTestResult {
+  from: string;
+  subject: string;
+  date: string;
+}
+
+export async function testGmailFilter(
+  ceoEmail: string,
+  filterQuery: string,
+): Promise<FilterTestResult[]> {
+  const gmail = getGmailClient(ceoEmail);
+
+  const res = await withRetry(() =>
+    gmail.users.messages.list({
+      userId: "me",
+      q: filterQuery,
+      maxResults: 3,
+    }),
+  );
+
+  if (!res.data.messages?.length) return [];
+
+  const results: FilterTestResult[] = [];
+  for (const msg of res.data.messages) {
+    if (!msg.id) continue;
+    const detail = await withRetry(() =>
+      gmail.users.messages.get({
+        userId: "me",
+        id: msg.id!,
+        format: "metadata",
+        metadataHeaders: ["From", "Subject", "Date"],
+      }),
+    );
+    const headers = detail.data.payload?.headers ?? [];
+    results.push({
+      from: headers.find((h) => h.name === "From")?.value ?? "",
+      subject: headers.find((h) => h.name === "Subject")?.value ?? "",
+      date: headers.find((h) => h.name === "Date")?.value ?? "",
+    });
+  }
+
+  return results;
+}
+
 export async function getLatestThreadMessageId(
   ceoEmail: string,
   threadId: string,

@@ -32,6 +32,9 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
   const [exampleForm, setExampleForm] = useState({ body: "" });
   const [editingExampleId, setEditingExampleId] = useState<string | null>(null);
+  const [filterTestResults, setFilterTestResults] = useState<{ from: string; subject: string; date: string }[]>([]);
+  const [filterTestLoading, setFilterTestLoading] = useState(false);
+  const [filterTestRan, setFilterTestRan] = useState(false);
   const [expandedExampleId, setExpandedExampleId] = useState<string | null>(null);
 
   const fetchExamples = useCallback(async (triggerId: string) => {
@@ -124,6 +127,8 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   function resetForm() {
     setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, match_mode: "llm", gmail_filter_query: "", reply_window_min_hours: 4, reply_window_max_hours: 6 });
     setEditingTrigger(null);
+    setFilterTestResults([]);
+    setFilterTestRan(false);
   }
 
   async function handleToggleEnabled(trigger: Trigger) {
@@ -136,6 +141,34 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       setTriggers((prev) =>
         prev.map((t) => (t.id === trigger.id ? { ...t, enabled: !t.enabled } : t)),
       );
+    }
+  }
+
+  async function handleTestFilter() {
+    if (!form.gmail_filter_query.trim()) {
+      toast.error("Enter a filter query first");
+      return;
+    }
+    setFilterTestLoading(true);
+    setFilterTestRan(true);
+    try {
+      const res = await fetch("/api/triggers/test-filter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: form.gmail_filter_query }),
+      });
+      if (res.ok) {
+        setFilterTestResults(await res.json());
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? "Test failed");
+        setFilterTestResults([]);
+      }
+    } catch {
+      toast.error("Test failed");
+      setFilterTestResults([]);
+    } finally {
+      setFilterTestLoading(false);
     }
   }
 
@@ -265,9 +298,36 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                 onChange={(e) => setForm((f) => ({ ...f, gmail_filter_query: e.target.value }))}
                 placeholder="e.g. from:company.com subject:invoice"
               />
-              <p className="text-xs text-muted-foreground">
-                Uses Gmail search syntax. Only used in Gmail Filter mode.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Uses Gmail search syntax. Only used in Gmail Filter mode.
+                </p>
+                {form.match_mode === "gmail_filter" && (
+                  <button
+                    type="button"
+                    onClick={handleTestFilter}
+                    disabled={filterTestLoading}
+                    className="text-xs text-primary hover:underline disabled:opacity-50"
+                  >
+                    {filterTestLoading ? "Testing..." : "Test filter"}
+                  </button>
+                )}
+              </div>
+              {filterTestRan && form.match_mode === "gmail_filter" && (
+                <div className="rounded-md border p-2 space-y-1">
+                  {filterTestResults.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No emails matched this filter.</p>
+                  ) : (
+                    filterTestResults.map((r, i) => (
+                      <div key={i} className="text-xs space-y-0.5 border-b last:border-0 pb-1 last:pb-0">
+                        <p className="font-medium truncate">{r.from}</p>
+                        <p className="text-muted-foreground truncate">{r.subject}</p>
+                        <p className="text-muted-foreground">{new Date(r.date).toLocaleDateString()}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Email Type</Label>
