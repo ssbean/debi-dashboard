@@ -1,7 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/poll-classify", "schedule": "0 * * * *" },
-    { "path": "/api/cron/generate-drafts", "schedule": "* * * * *" },
-    { "path": "/api/cron/send-emails", "schedule": "* * * * *" }
+    { "path": "/api/cron/generate-drafts", "schedule": "5 * * * *" },
+    { "path": "/api/cron/send-emails", "schedule": "10 * * * *" }
   ]
 }

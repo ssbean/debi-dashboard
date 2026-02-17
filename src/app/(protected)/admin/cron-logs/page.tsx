@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TriggerButtons } from "./trigger-buttons";
 
 interface CronLog {
   id: string;
@@ -104,7 +105,10 @@ export default async function CronLogsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Cron Logs</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Cron Logs</h1>
+        <TriggerButtons />
+      </div>
 
       <div className="grid grid-cols-4 gap-4">
         <Card>
