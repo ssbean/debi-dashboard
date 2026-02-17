@@ -54,6 +54,32 @@ export async function POST(
   return NextResponse.json(data);
 }
 
+export async function PUT(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id: exampleId, body } = await req.json();
+  if (!exampleId) {
+    return NextResponse.json({ error: "Missing id" }, { status: 400 });
+  }
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("style_examples")
+    .update({ body, source: "edited" })
+    .eq("id", exampleId)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json(data);
+}
+
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {

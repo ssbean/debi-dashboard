@@ -31,6 +31,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   const [loadingExamples, setLoadingExamples] = useState(false);
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
   const [exampleForm, setExampleForm] = useState({ body: "" });
+  const [editingExampleId, setEditingExampleId] = useState<string | null>(null);
   const [expandedExampleId, setExpandedExampleId] = useState<string | null>(null);
 
   const fetchExamples = useCallback(async (triggerId: string) => {
@@ -64,6 +65,36 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     } else {
       const data = await res.json();
       toast.error(data.error ?? "Failed to add example");
+    }
+  }
+
+  function openEditExample(ex: StyleExample) {
+    setEditingExampleId(ex.id);
+    setExampleForm({ body: ex.body });
+    setExampleDialogOpen(true);
+  }
+
+  async function handleSaveExample() {
+    if (editingExampleId) {
+      if (!expandedTriggerId) return;
+      const res = await fetch(`/api/triggers/${expandedTriggerId}/examples`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingExampleId, body: exampleForm.body }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setExamples((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+        setExampleDialogOpen(false);
+        setExampleForm({ body: "" });
+        setEditingExampleId(null);
+        toast.success("Example updated");
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? "Failed to update example");
+      }
+    } else {
+      await handleAddExample();
     }
   }
 
@@ -247,7 +278,10 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                 <div className="mt-4 border-t pt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium">Style Examples</h4>
-                    <Dialog open={exampleDialogOpen} onOpenChange={setExampleDialogOpen}>
+                    <Dialog open={exampleDialogOpen} onOpenChange={(open) => {
+                      setExampleDialogOpen(open);
+                      if (!open) { setEditingExampleId(null); setExampleForm({ body: "" }); }
+                    }}>
                       <DialogTrigger asChild>
                         <Button size="sm" variant="outline">
                           Add Example
@@ -255,7 +289,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Add Style Example</DialogTitle>
+                          <DialogTitle>{editingExampleId ? "Edit Style Example" : "Add Style Example"}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="space-y-2">
@@ -269,8 +303,8 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                               rows={8}
                             />
                           </div>
-                          <Button onClick={handleAddExample} className="w-full">
-                            Add
+                          <Button onClick={handleSaveExample} className="w-full">
+                            {editingExampleId ? "Update" : "Add"}
                           </Button>
                         </div>
                       </DialogContent>
@@ -305,6 +339,13 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                                 }
                               >
                                 {expandedExampleId === ex.id ? "Collapse" : "Expand"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditExample(ex)}
+                              >
+                                Edit
                               </Button>
                               <Button
                                 variant="ghost"
