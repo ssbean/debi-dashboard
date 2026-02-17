@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,13 +17,67 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import type { Trigger } from "@/lib/types";
+import type { Trigger, StyleExample } from "@/lib/types";
 
 export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[] }) {
   const router = useRouter();
   const [triggers, setTriggers] = useState(initialTriggers);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTrigger, setEditingTrigger] = useState<Trigger | null>(null);
+
+  // Style examples state
+  const [expandedTriggerId, setExpandedTriggerId] = useState<string | null>(null);
+  const [examples, setExamples] = useState<StyleExample[]>([]);
+  const [loadingExamples, setLoadingExamples] = useState(false);
+  const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
+  const [exampleForm, setExampleForm] = useState({ subject: "", body: "" });
+  const [expandedExampleId, setExpandedExampleId] = useState<string | null>(null);
+
+  const fetchExamples = useCallback(async (triggerId: string) => {
+    setLoadingExamples(true);
+    const res = await fetch(`/api/triggers/${triggerId}/examples`);
+    if (res.ok) {
+      setExamples(await res.json());
+    }
+    setLoadingExamples(false);
+  }, []);
+
+  useEffect(() => {
+    if (expandedTriggerId) {
+      fetchExamples(expandedTriggerId);
+    }
+  }, [expandedTriggerId, fetchExamples]);
+
+  async function handleAddExample() {
+    if (!expandedTriggerId) return;
+    const res = await fetch(`/api/triggers/${expandedTriggerId}/examples`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(exampleForm),
+    });
+    if (res.ok) {
+      const newExample = await res.json();
+      setExamples((prev) => [newExample, ...prev]);
+      setExampleDialogOpen(false);
+      setExampleForm({ subject: "", body: "" });
+      toast.success("Example added");
+    } else {
+      const data = await res.json();
+      toast.error(data.error ?? "Failed to add example");
+    }
+  }
+
+  async function handleDeleteExample(exampleId: string) {
+    if (!expandedTriggerId) return;
+    const res = await fetch(
+      `/api/triggers/${expandedTriggerId}/examples?exampleId=${exampleId}`,
+      { method: "DELETE" },
+    );
+    if (res.ok) {
+      setExamples((prev) => prev.filter((e) => e.id !== exampleId));
+      toast.success("Example deleted");
+    }
+  }
 
   const [form, setForm] = useState({
     name: "",
@@ -156,27 +210,135 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       <div className="space-y-3">
         {triggers.map((trigger) => (
           <Card key={trigger.id}>
-            <CardContent className="flex items-center justify-between py-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{trigger.name}</span>
-                  <Badge variant="outline">{trigger.email_type}</Badge>
-                  {trigger.reply_in_thread && <Badge variant="secondary">Thread</Badge>}
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{trigger.name}</span>
+                    <Badge variant="outline">{trigger.email_type}</Badge>
+                    {trigger.reply_in_thread && <Badge variant="secondary">Thread</Badge>}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{trigger.description}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">{trigger.description}</p>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    checked={trigger.enabled}
+                    onCheckedChange={() => handleToggleEnabled(trigger)}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setExpandedTriggerId(expandedTriggerId === trigger.id ? null : trigger.id)
+                    }
+                  >
+                    Examples
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(trigger)}>
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(trigger.id)}>
+                    Delete
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={trigger.enabled}
-                  onCheckedChange={() => handleToggleEnabled(trigger)}
-                />
-                <Button variant="ghost" size="sm" onClick={() => openEdit(trigger)}>
-                  Edit
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(trigger.id)}>
-                  Delete
-                </Button>
-              </div>
+
+              {expandedTriggerId === trigger.id && (
+                <div className="mt-4 border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Style Examples</h4>
+                    <Dialog open={exampleDialogOpen} onOpenChange={setExampleDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          Add Example
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Style Example</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Subject</Label>
+                            <Input
+                              value={exampleForm.subject}
+                              onChange={(e) =>
+                                setExampleForm((f) => ({ ...f, subject: e.target.value }))
+                              }
+                              placeholder="Example email subject..."
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Body</Label>
+                            <Textarea
+                              value={exampleForm.body}
+                              onChange={(e) =>
+                                setExampleForm((f) => ({ ...f, body: e.target.value }))
+                              }
+                              placeholder="Example email body..."
+                              rows={8}
+                            />
+                          </div>
+                          <Button onClick={handleAddExample} className="w-full">
+                            Add
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+
+                  {loadingExamples ? (
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                  ) : examples.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No examples yet. Add one to help match the CEO&apos;s voice.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {examples.map((ex) => (
+                        <div
+                          key={ex.id}
+                          className="rounded-md border p-3 text-sm space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{ex.subject}</span>
+                              <Badge variant="secondary">{ex.source}</Badge>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setExpandedExampleId(
+                                    expandedExampleId === ex.id ? null : ex.id,
+                                  )
+                                }
+                              >
+                                {expandedExampleId === ex.id ? "Collapse" : "Expand"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteExample(ex.id)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-muted-foreground whitespace-pre-wrap">
+                            {expandedExampleId === ex.id
+                              ? ex.body
+                              : ex.body.length > 150
+                                ? ex.body.slice(0, 150) + "..."
+                                : ex.body}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
