@@ -117,6 +117,27 @@ async function getEmailContent(
   };
 }
 
+export async function fetchFilteredEmailIds(
+  ceoEmail: string,
+  since: Date,
+  filterQuery: string,
+): Promise<string[]> {
+  const gmail = getGmailClient(ceoEmail);
+  const sinceEpoch = Math.floor(since.getTime() / 1000);
+  const query = `${filterQuery} is:unread after:${sinceEpoch}`;
+
+  const res = await withRetry(() =>
+    gmail.users.messages.list({
+      userId: "me",
+      q: query,
+      maxResults: 20,
+    }),
+  );
+
+  if (!res.data.messages?.length) return [];
+  return res.data.messages.map((m) => m.id).filter((id): id is string => !!id);
+}
+
 export async function sendEmail(
   ceoEmail: string,
   to: string,

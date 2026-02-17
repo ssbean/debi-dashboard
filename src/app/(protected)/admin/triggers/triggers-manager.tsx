@@ -115,12 +115,14 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     description: "",
     email_type: "congratulatory" as Trigger["email_type"],
     reply_in_thread: false,
+    match_mode: "llm" as Trigger["match_mode"],
+    gmail_filter_query: "",
     reply_window_min_hours: 4,
     reply_window_max_hours: 6,
   });
 
   function resetForm() {
-    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, reply_window_min_hours: 4, reply_window_max_hours: 6 });
+    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, match_mode: "llm", gmail_filter_query: "", reply_window_min_hours: 4, reply_window_max_hours: 6 });
     setEditingTrigger(null);
   }
 
@@ -138,6 +140,14 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   }
 
   async function handleSave() {
+    if (form.match_mode === "llm" && !form.description.trim()) {
+      toast.error("Description is required for LLM mode");
+      return;
+    }
+    if (form.match_mode === "gmail_filter" && !form.gmail_filter_query.trim()) {
+      toast.error("Gmail filter query is required for filter mode");
+      return;
+    }
     if (form.reply_window_min_hours >= form.reply_window_max_hours || form.reply_window_min_hours <= 0) {
       toast.error("Reply window: min must be less than max, both must be > 0");
       return;
@@ -148,7 +158,10 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        ...form,
+        gmail_filter_query: form.gmail_filter_query.trim() || null,
+      }),
     });
 
     if (res.ok) {
@@ -178,6 +191,8 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       description: trigger.description,
       email_type: trigger.email_type,
       reply_in_thread: trigger.reply_in_thread,
+      match_mode: trigger.match_mode,
+      gmail_filter_query: trigger.gmail_filter_query ?? "",
       reply_window_min_hours: trigger.reply_window_min_hours,
       reply_window_max_hours: trigger.reply_window_max_hours,
     });
@@ -210,6 +225,31 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
               />
             </div>
             <div className="space-y-2">
+              <Label>Match Mode</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="match_mode"
+                    value="llm"
+                    checked={form.match_mode === "llm"}
+                    onChange={() => setForm((f) => ({ ...f, match_mode: "llm" }))}
+                  />
+                  LLM Classification
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="match_mode"
+                    value="gmail_filter"
+                    checked={form.match_mode === "gmail_filter"}
+                    onChange={() => setForm((f) => ({ ...f, match_mode: "gmail_filter" }))}
+                  />
+                  Gmail Filter
+                </label>
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label>Description</Label>
               <Textarea
                 value={form.description}
@@ -217,6 +257,17 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                 placeholder="Natural language description of what triggers this..."
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Gmail Filter Query</Label>
+              <Input
+                value={form.gmail_filter_query}
+                onChange={(e) => setForm((f) => ({ ...f, gmail_filter_query: e.target.value }))}
+                placeholder="e.g. from:company.com subject:invoice"
+              />
+              <p className="text-xs text-muted-foreground">
+                Uses Gmail search syntax. Only used in Gmail Filter mode.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Email Type</Label>
@@ -281,6 +332,9 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{trigger.name}</span>
                     <Badge variant="outline">{trigger.email_type}</Badge>
+                    <Badge variant={trigger.match_mode === "gmail_filter" ? "default" : "secondary"}>
+                      {trigger.match_mode === "gmail_filter" ? "Filter" : "LLM"}
+                    </Badge>
                     {trigger.reply_in_thread && <Badge variant="secondary">Thread</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{trigger.description}</p>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { fetchNewEmails } from "@/lib/gmail";
+import { fetchNewEmails, fetchFilteredEmailIds } from "@/lib/gmail";
 import { classifyEmail } from "@/lib/claude";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
@@ -52,7 +52,10 @@ export async function GET(req: NextRequest) {
     // Fetch emails from last 70 minutes (overlap to avoid missing with hourly schedule)
     const since = new Date(Date.now() - 70 * 60 * 1000);
     const domains = settings.company_domains.split(",").map((d: string) => d.trim());
-    const emails = await fetchNewEmails(settings.ceo_email, since, domains);
+
+    // Split triggers by match mode
+    const filterTriggers = (triggers as Trigger[]).filter(t => t.match_mode === "gmail_filter" && t.gmail_filter_query);
+    const llmTriggers = (triggers as Trigger[]).filter(t => t.match_mode === "llm");
 
     let processed = 0;
     let matched = 0;
@@ -63,6 +66,32 @@ export async function GET(req: NextRequest) {
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     const byTrigger: Record<string, number> = {};
+
+    // Filter phase: query Gmail API for each filter trigger to get matched message IDs
+    const filterMatchedIds = new Map<string, Trigger>();
+    for (const trigger of filterTriggers) {
+      try {
+        const matchedIds = await fetchFilteredEmailIds(
+          settings.ceo_email,
+          since,
+          trigger.gmail_filter_query!,
+        );
+        for (const id of matchedIds) {
+          if (!filterMatchedIds.has(id)) {
+            filterMatchedIds.set(id, trigger);
+          }
+        }
+      } catch (error) {
+        errors++;
+        logger.error(`Filter trigger "${trigger.name}" failed`, "poll-classify", {
+          error: String(error),
+          trigger_id: trigger.id,
+        });
+      }
+    }
+
+    // Fetch all candidate emails
+    const emails = await fetchNewEmails(settings.ceo_email, since, domains);
 
     // Process in batches of 5
     const BATCH_SIZE = 5;
@@ -83,18 +112,58 @@ export async function GET(req: NextRequest) {
               return;
             }
 
-            // Classify
+            // Check if this email was matched by a filter trigger
+            const filterTrigger = filterMatchedIds.get(email.messageId);
+
+            if (filterTrigger) {
+              // Filter match: 100% confidence, no LLM call
+              await supabase.from("processed_emails").insert({
+                gmail_message_id: email.messageId,
+                matched: true,
+              });
+
+              byTrigger[filterTrigger.name] = (byTrigger[filterTrigger.name] ?? 0) + 1;
+              totalConfidence += 100;
+              confidenceCount++;
+
+              await supabase.from("drafts").insert({
+                trigger_id: filterTrigger.id,
+                gmail_message_id: email.messageId,
+                gmail_thread_id: email.threadId,
+                trigger_email_from: email.from,
+                trigger_email_subject: email.subject,
+                trigger_email_body_snippet: email.body.slice(0, 500),
+                recipient_email: email.from,
+                recipient_name: null,
+                confidence_score: 100,
+                status: "needs_drafting",
+              });
+
+              processed++;
+              matched++;
+              return;
+            }
+
+            // LLM phase: classify with remaining triggers
+            if (llmTriggers.length === 0) {
+              await supabase.from("processed_emails").insert({
+                gmail_message_id: email.messageId,
+                matched: false,
+              });
+              processed++;
+              return;
+            }
+
             const { result, usage } = await classifyEmail(
               email.from,
               email.subject,
               email.body,
-              triggers as Trigger[],
+              llmTriggers,
             );
 
             totalInputTokens += usage.input_tokens;
             totalOutputTokens += usage.output_tokens;
 
-            // Insert processed_emails
             await supabase.from("processed_emails").insert({
               gmail_message_id: email.messageId,
               matched: result.matched,
@@ -108,13 +177,11 @@ export async function GET(req: NextRequest) {
                 confidenceCount++;
               }
 
-              // Count by trigger name
-              const triggerObj = (triggers as Trigger[]).find(t => t.id === result.trigger_id);
+              const triggerObj = llmTriggers.find(t => t.id === result.trigger_id);
               if (triggerObj) {
                 byTrigger[triggerObj.name] = (byTrigger[triggerObj.name] ?? 0) + 1;
               }
 
-              // Insert draft with needs_drafting status
               await supabase.from("drafts").insert({
                 trigger_id: result.trigger_id,
                 gmail_message_id: email.messageId,
