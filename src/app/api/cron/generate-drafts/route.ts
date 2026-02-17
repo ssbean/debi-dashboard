@@ -93,11 +93,13 @@ export async function GET(req: NextRequest) {
         totalInputTokens += usage.input_tokens;
         totalOutputTokens += usage.output_tokens;
 
-        // Calculate send time
+        // Calculate send time using trigger's reply window
         const sendTime = calculateSendTime(
           new Date(draft.created_at),
           settings as Settings,
           existingTimes,
+          trigger.reply_window_min_hours,
+          trigger.reply_window_max_hours,
         );
         existingTimes.push(sendTime);
 

@@ -5,6 +5,8 @@ export interface Trigger {
   email_type: "congratulatory" | "promotional" | "welcome";
   reply_in_thread: boolean;
   enabled: boolean;
+  reply_window_min_hours: number;
+  reply_window_max_hours: number;
   sort_order: number;
   created_at: string;
   updated_at: string | null;

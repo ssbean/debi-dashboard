@@ -115,10 +115,12 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     description: "",
     email_type: "congratulatory" as Trigger["email_type"],
     reply_in_thread: false,
+    reply_window_min_hours: 4,
+    reply_window_max_hours: 6,
   });
 
   function resetForm() {
-    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false });
+    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, reply_window_min_hours: 4, reply_window_max_hours: 6 });
     setEditingTrigger(null);
   }
 
@@ -136,6 +138,10 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   }
 
   async function handleSave() {
+    if (form.reply_window_min_hours >= form.reply_window_max_hours || form.reply_window_min_hours <= 0) {
+      toast.error("Reply window: min must be less than max, both must be > 0");
+      return;
+    }
     const url = editingTrigger ? `/api/triggers/${editingTrigger.id}` : "/api/triggers";
     const method = editingTrigger ? "PUT" : "POST";
 
@@ -172,6 +178,8 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       description: trigger.description,
       email_type: trigger.email_type,
       reply_in_thread: trigger.reply_in_thread,
+      reply_window_min_hours: trigger.reply_window_min_hours,
+      reply_window_max_hours: trigger.reply_window_max_hours,
     });
     setDialogOpen(true);
   }
@@ -230,6 +238,32 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                 onCheckedChange={(checked) => setForm((f) => ({ ...f, reply_in_thread: checked }))}
               />
               <Label>Reply in thread</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Reply Window (hours after email received)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={form.reply_window_min_hours}
+                  onChange={(e) => setForm((f) => ({ ...f, reply_window_min_hours: parseFloat(e.target.value) || 0 }))}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">to</span>
+                <Input
+                  type="number"
+                  min={0.5}
+                  step={0.5}
+                  value={form.reply_window_max_hours}
+                  onChange={(e) => setForm((f) => ({ ...f, reply_window_max_hours: parseFloat(e.target.value) || 0 }))}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">hours</span>
+              </div>
+              {form.reply_window_min_hours >= form.reply_window_max_hours && (
+                <p className="text-sm text-destructive">Min must be less than max</p>
+              )}
             </div>
             <Button onClick={handleSave} className="w-full">
               {editingTrigger ? "Update" : "Create"}

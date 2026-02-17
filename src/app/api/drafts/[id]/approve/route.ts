@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { calculateSendTimeAfterApproval } from "@/lib/scheduler";
+import type { Settings } from "@/lib/types";
 
 export async function POST(
   req: NextRequest,
@@ -38,6 +40,34 @@ export async function POST(
   // Check if body was edited — save as style example
   const wasEdited = draft.body && body !== draft.body;
 
+  // Check if scheduled_send_at is in the past — reschedule if so
+  let scheduledSendAt = draft.scheduled_send_at;
+  if (!scheduledSendAt || new Date(scheduledSendAt) < new Date()) {
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("id", 1)
+      .maybeSingle();
+
+    if (settings) {
+      const { data: scheduledDrafts } = await supabase
+        .from("drafts")
+        .select("scheduled_send_at")
+        .in("status", ["approved", "auto_approved"])
+        .not("scheduled_send_at", "is", null);
+
+      const existingTimes = (scheduledDrafts ?? [])
+        .map((d: { scheduled_send_at: string | null }) => d.scheduled_send_at)
+        .filter((t): t is string => t !== null)
+        .map((t) => new Date(t));
+
+      scheduledSendAt = calculateSendTimeAfterApproval(
+        settings as Settings,
+        existingTimes,
+      ).toISOString();
+    }
+  }
+
   // Update draft
   await supabase
     .from("drafts")
@@ -47,6 +77,7 @@ export async function POST(
       body,
       original_body: wasEdited ? draft.body : draft.original_body,
       status: "approved",
+      scheduled_send_at: scheduledSendAt,
       approved_by_email: session.user.email,
       updated_at: new Date().toISOString(),
     })

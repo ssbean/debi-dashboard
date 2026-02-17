@@ -5,12 +5,14 @@ export function calculateSendTime(
   triggerReceivedAt: Date,
   settings: Settings,
   existingScheduledTimes: Date[] = [],
+  replyWindowMinHours: number = 4,
+  replyWindowMaxHours: number = 6,
 ): Date {
   const zone = settings.ceo_timezone;
   const triggerTime = DateTime.fromJSDate(triggerReceivedAt).setZone(zone);
 
-  // Random offset between 4-6 hours
-  const offsetHours = 4 + Math.random() * 2;
+  // Random offset within the trigger's reply window
+  const offsetHours = replyWindowMinHours + Math.random() * (replyWindowMaxHours - replyWindowMinHours);
   let sendTime = triggerTime.plus({ hours: offsetHours });
 
   // Parse business hours
@@ -21,6 +23,24 @@ export function calculateSendTime(
   sendTime = rollToBusinessHours(sendTime, startH, startM, endH, endM, settings.holidays, zone);
 
   // Space out: no two sends within 15 minutes
+  sendTime = spaceSends(sendTime, existingScheduledTimes, startH, startM, endH, endM, settings.holidays, zone);
+
+  return sendTime.toJSDate();
+}
+
+export function calculateSendTimeAfterApproval(
+  settings: Settings,
+  existingScheduledTimes: Date[] = [],
+): Date {
+  const zone = settings.ceo_timezone;
+  // Small random offset: 2-10 minutes from now
+  const offsetMinutes = 2 + Math.random() * 8;
+  let sendTime = DateTime.now().setZone(zone).plus({ minutes: offsetMinutes });
+
+  const [startH, startM] = settings.business_hours_start.split(":").map(Number);
+  const [endH, endM] = settings.business_hours_end.split(":").map(Number);
+
+  sendTime = rollToBusinessHours(sendTime, startH, startM, endH, endM, settings.holidays, zone);
   sendTime = spaceSends(sendTime, existingScheduledTimes, startH, startM, endH, endM, settings.holidays, zone);
 
   return sendTime.toJSDate();
