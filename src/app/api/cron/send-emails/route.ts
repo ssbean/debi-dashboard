@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/gmail";
+import { sendEmail, getLatestThreadMessageId } from "@/lib/gmail";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
 
@@ -68,12 +68,19 @@ export async function GET(req: NextRequest) {
         const threadId =
           draft.trigger?.reply_in_thread ? draft.gmail_thread_id : null;
 
+        // Fetch latest message ID for proper threading headers
+        let inReplyTo: string | null = null;
+        if (threadId) {
+          inReplyTo = await getLatestThreadMessageId(settings.ceo_email, threadId);
+        }
+
         await sendEmail(
           settings.ceo_email,
           draft.recipient_email,
           draft.subject,
           draft.body,
           threadId,
+          inReplyTo,
         );
 
         await supabase

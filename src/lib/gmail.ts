@@ -138,22 +138,59 @@ export async function fetchFilteredEmailIds(
   return res.data.messages.map((m) => m.id).filter((id): id is string => !!id);
 }
 
+export async function getLatestThreadMessageId(
+  ceoEmail: string,
+  threadId: string,
+): Promise<string | null> {
+  const gmail = getGmailClient(ceoEmail);
+
+  const res = await withRetry(() =>
+    gmail.users.threads.get({
+      userId: "me",
+      id: threadId,
+      format: "metadata",
+      metadataHeaders: ["Message-ID"],
+    }),
+  );
+
+  const messages = res.data.messages;
+  if (!messages?.length) return null;
+
+  const lastMessage = messages[messages.length - 1];
+  const messageIdHeader = lastMessage.payload?.headers?.find(
+    (h) => h.name?.toLowerCase() === "message-id",
+  );
+
+  return messageIdHeader?.value ?? null;
+}
+
 export async function sendEmail(
   ceoEmail: string,
   to: string,
   subject: string,
   body: string,
   threadId?: string | null,
+  inReplyTo?: string | null,
 ) {
   const gmail = getGmailClient(ceoEmail);
 
-  const message = [
+  const replySubject =
+    threadId && !subject.toLowerCase().startsWith("re:")
+      ? `Re: ${subject}`
+      : subject;
+
+  const headers = [
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${replySubject}`,
     `Content-Type: text/plain; charset=utf-8`,
-    "",
-    body,
-  ].join("\r\n");
+  ];
+
+  if (inReplyTo) {
+    headers.push(`In-Reply-To: ${inReplyTo}`);
+    headers.push(`References: ${inReplyTo}`);
+  }
+
+  const message = [...headers, "", body].join("\r\n");
 
   const encodedMessage = Buffer.from(message)
     .toString("base64")
