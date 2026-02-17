@@ -118,6 +118,8 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     }
   }
 
+  const defaultSystemPrompt = "You are drafting an email as a CEO. Write in the CEO's voice and style based on the provided examples. The email should be:\n- Warm but professional\n- Personal and specific to the situation\n- Concise (2-4 paragraphs)\n- Match the tone and patterns from the style examples";
+
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -125,12 +127,13 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
     reply_in_thread: false,
     match_mode: "llm" as Trigger["match_mode"],
     gmail_filter_query: "",
+    system_prompt: defaultSystemPrompt,
     reply_window_min_hours: 4,
     reply_window_max_hours: 6,
   });
 
   function resetForm() {
-    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, match_mode: "llm", gmail_filter_query: "", reply_window_min_hours: 4, reply_window_max_hours: 6 });
+    setForm({ name: "", description: "", email_type: "congratulatory", reply_in_thread: false, match_mode: "llm", gmail_filter_query: "", system_prompt: defaultSystemPrompt, reply_window_min_hours: 4, reply_window_max_hours: 6 });
     setEditingTrigger(null);
     setFilterTestResults([]);
     setFilterTestRan(false);
@@ -231,6 +234,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       reply_in_thread: trigger.reply_in_thread,
       match_mode: trigger.match_mode,
       gmail_filter_query: trigger.gmail_filter_query ?? "",
+      system_prompt: trigger.system_prompt,
       reply_window_min_hours: trigger.reply_window_min_hours,
       reply_window_max_hours: trigger.reply_window_max_hours,
     });
@@ -380,6 +384,17 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
               {form.reply_window_min_hours >= form.reply_window_max_hours && (
                 <p className="text-sm text-destructive">Min must be less than max</p>
               )}
+            </div>
+            <div>
+              <Label>System Prompt</Label>
+              <Textarea
+                value={form.system_prompt}
+                onChange={(e) => setForm((f) => ({ ...f, system_prompt: e.target.value }))}
+                rows={6}
+                className="mt-1 font-mono text-xs"
+                placeholder="System prompt for draft generation..."
+              />
+              <p className="text-xs text-muted-foreground mt-1">Controls how Claude generates draft replies for this trigger.</p>
             </div>
             <Button onClick={handleSave} className="w-full">
               {editingTrigger ? "Update" : "Create"}

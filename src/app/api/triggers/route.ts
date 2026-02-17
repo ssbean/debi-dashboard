@@ -10,6 +10,7 @@ const TriggerSchema = z.object({
   reply_in_thread: z.boolean().default(false),
   match_mode: z.enum(["llm", "gmail_filter"]).default("llm"),
   gmail_filter_query: z.string().max(500).nullable().default(null),
+  system_prompt: z.string().max(5000).default("You are drafting an email as a CEO. Write in the CEO's voice and style based on the provided examples. The email should be:\n- Warm but professional\n- Personal and specific to the situation\n- Concise (2-4 paragraphs)\n- Match the tone and patterns from the style examples"),
   reply_window_min_hours: z.number().positive().default(4),
   reply_window_max_hours: z.number().positive().default(6),
   enabled: z.boolean().default(true),

@@ -7,6 +7,7 @@ export interface Trigger {
   enabled: boolean;
   match_mode: "llm" | "gmail_filter";
   gmail_filter_query: string | null;
+  system_prompt: string;
   reply_window_min_hours: number;
   reply_window_max_hours: number;
   sort_order: number;

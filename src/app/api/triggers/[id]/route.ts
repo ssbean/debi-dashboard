@@ -10,6 +10,7 @@ const TriggerUpdateSchema = z.object({
   reply_in_thread: z.boolean(),
   match_mode: z.enum(["llm", "gmail_filter"]).default("llm"),
   gmail_filter_query: z.string().max(500).nullable().default(null),
+  system_prompt: z.string().max(5000).optional(),
   reply_window_min_hours: z.number().positive().optional(),
   reply_window_max_hours: z.number().positive().optional(),
   enabled: z.boolean().optional(),

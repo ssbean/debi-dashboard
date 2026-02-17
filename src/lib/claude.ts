@@ -124,11 +124,7 @@ export async function draftEmail(
       system: [
         {
           type: "text",
-          text: `You are drafting an email as a CEO. Write in the CEO's voice and style based on the provided examples. The email should be:
-- Warm but professional
-- Personal and specific to the situation
-- Concise (2-4 paragraphs)
-- Match the tone and patterns from the style examples
+          text: `${trigger.system_prompt}
 
 Email type: ${trigger.email_type}
 Trigger: ${trigger.name} — ${trigger.description}
