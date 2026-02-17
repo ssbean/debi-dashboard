@@ -65,6 +65,8 @@ export async function GET(req: NextRequest) {
     let pendingReview = 0;
     let errors = 0;
     let totalConfidence = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (const draft of drafts) {
       try {
@@ -78,7 +80,7 @@ export async function GET(req: NextRequest) {
           .order("created_at", { ascending: false })
           .limit(5);
 
-        const result = await draftEmail(
+        const { result, usage } = await draftEmail(
           trigger,
           draft.trigger_email_from,
           draft.trigger_email_subject,
@@ -87,6 +89,9 @@ export async function GET(req: NextRequest) {
           draft.recipient_email,
           (examples ?? []) as StyleExample[],
         );
+
+        totalInputTokens += usage.input_tokens;
+        totalOutputTokens += usage.output_tokens;
 
         // Calculate send time
         const sendTime = calculateSendTime(
@@ -153,6 +158,9 @@ export async function GET(req: NextRequest) {
       queue_remaining: queueRemaining ?? 0,
       avg_confidence: avgConfidence,
       errors,
+      model: "claude-sonnet-4-5-20250929",
+      input_tokens: totalInputTokens,
+      output_tokens: totalOutputTokens,
     };
 
     logger.info("Generate-drafts completed", "generate-drafts", { generated, errors });

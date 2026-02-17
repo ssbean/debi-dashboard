@@ -41,13 +41,34 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  "claude-haiku-4-5-20251001": { input: 1, output: 5 },
+  "claude-sonnet-4-5-20250929": { input: 3, output: 15 },
+};
+
+function estimateCost(stats: Record<string, unknown>): number | null {
+  const model = stats.model as string | undefined;
+  const inputTokens = Number(stats.input_tokens) || 0;
+  const outputTokens = Number(stats.output_tokens) || 0;
+  if (!model || !MODEL_PRICING[model] || (inputTokens === 0 && outputTokens === 0)) return null;
+  const pricing = MODEL_PRICING[model];
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}
+
+function formatCost(cost: number): string {
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(2)}`;
+}
+
 function summarize(log: CronLog): string {
   const s = log.stats;
+  const cost = estimateCost(s);
+  const costStr = cost !== null ? ` · ${formatCost(cost)}` : "";
   switch (log.job_name) {
     case "poll-classify":
-      return `${s.emails_processed ?? 0} processed, ${s.emails_matched ?? 0} matched`;
+      return `${s.emails_processed ?? 0} processed, ${s.emails_matched ?? 0} matched${costStr}`;
     case "generate-drafts":
-      return `${s.drafts_generated ?? 0} drafted (${s.auto_approved ?? 0} auto, ${s.pending_review ?? 0} review)`;
+      return `${s.drafts_generated ?? 0} drafted (${s.auto_approved ?? 0} auto, ${s.pending_review ?? 0} review)${costStr}`;
     case "send-emails":
       return `${s.emails_sent ?? 0} sent`;
     default:
@@ -80,6 +101,8 @@ export default async function CronLogsPage({
 
   const logs24h = (recentLogs ?? []) as CronLog[];
 
+  const totalCost24h = logs24h.reduce((sum, l) => sum + (estimateCost(l.stats) ?? 0), 0);
+
   const totalRuns = logs24h.length;
   const emailsProcessed = logs24h
     .filter((l) => l.job_name === "poll-classify")
@@ -110,7 +133,7 @@ export default async function CronLogsPage({
         <TriggerButtons />
       </div>
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -150,6 +173,18 @@ export default async function CronLogsPage({
           <CardContent>
             <div className={`text-2xl font-bold ${errorCount > 0 ? "text-red-600" : ""}`}>
               {errorCount}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Est. Cost (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCost(totalCost24h)}
             </div>
           </CardContent>
         </Card>

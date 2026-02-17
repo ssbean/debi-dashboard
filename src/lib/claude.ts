@@ -24,13 +24,14 @@ const DraftSchema = z.object({
 
 export type ClassificationOutput = z.infer<typeof ClassificationSchema>;
 export type DraftOutput = z.infer<typeof DraftSchema>;
+export type TokenUsage = { input_tokens: number; output_tokens: number };
 
 export async function classifyEmail(
   emailFrom: string,
   emailSubject: string,
   emailBody: string,
   triggers: Trigger[],
-): Promise<ClassificationOutput> {
+): Promise<{ result: ClassificationOutput; usage: TokenUsage }> {
   const triggerDescriptions = triggers.map((t) => ({
     id: t.id,
     name: t.name,
@@ -40,7 +41,7 @@ export async function classifyEmail(
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 500,
       system: [
         {
@@ -87,7 +88,13 @@ Rules:
       cacheRead: response.usage?.cache_read_input_tokens ?? 0,
     });
 
-    return parsed;
+    return {
+      result: parsed,
+      usage: {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      },
+    };
   } catch (error) {
     if (error instanceof ClaudeError) throw error;
     throw new ClaudeError(`Classification failed: ${error}`);
@@ -102,7 +109,7 @@ export async function draftEmail(
   recipientName: string | null,
   recipientEmail: string | null,
   styleExamples: StyleExample[],
-): Promise<DraftOutput> {
+): Promise<{ result: DraftOutput; usage: TokenUsage }> {
   const examples = styleExamples
     .map(
       (e) =>
@@ -112,7 +119,7 @@ export async function draftEmail(
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-opus-4-0-20250514",
+      model: "claude-sonnet-4-5-20250929",
       max_tokens: 1500,
       system: [
         {
@@ -158,7 +165,13 @@ Draft a response email from the CEO to: ${recipientName ?? "the recipient"}${rec
       throw new ClaudeError("No JSON in draft response");
     }
 
-    return DraftSchema.parse(JSON.parse(jsonMatch[0]));
+    return {
+      result: DraftSchema.parse(JSON.parse(jsonMatch[0])),
+      usage: {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+      },
+    };
   } catch (error) {
     if (error instanceof ClaudeError) throw error;
     throw new ClaudeError(`Draft generation failed: ${error}`);

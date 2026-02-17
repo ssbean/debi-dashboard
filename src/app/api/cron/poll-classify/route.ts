@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
     let duplicatesSkipped = 0;
     let totalConfidence = 0;
     let confidenceCount = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
     const byTrigger: Record<string, number> = {};
 
     // Process in batches of 5
@@ -82,12 +84,15 @@ export async function GET(req: NextRequest) {
             }
 
             // Classify
-            const result = await classifyEmail(
+            const { result, usage } = await classifyEmail(
               email.from,
               email.subject,
               email.body,
               triggers as Trigger[],
             );
+
+            totalInputTokens += usage.input_tokens;
+            totalOutputTokens += usage.output_tokens;
 
             // Insert processed_emails
             await supabase.from("processed_emails").insert({
@@ -146,6 +151,9 @@ export async function GET(req: NextRequest) {
       avg_confidence: avgConfidence,
       by_trigger: byTrigger,
       errors,
+      model: "claude-haiku-4-5-20251001",
+      input_tokens: totalInputTokens,
+      output_tokens: totalOutputTokens,
     };
 
     logger.info("Poll-classify completed", "poll-classify", {
