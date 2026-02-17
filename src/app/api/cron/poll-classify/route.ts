@@ -118,7 +118,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ emailsScanned: emails.length, processed, matched, errors });
   } catch (error) {
-    logger.error("Poll-classify failed", "poll-classify", { error: String(error) });
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("POLL-CLASSIFY FAILED:", message);
+    if (stack) console.error("STACK:", stack);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
