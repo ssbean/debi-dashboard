@@ -27,6 +27,7 @@ export async function PUT(req: NextRequest) {
     .from("settings")
     .update({
       confidence_threshold: body.confidence_threshold,
+      ceo_email: body.ceo_email,
       ceo_timezone: body.ceo_timezone,
       company_domains: body.company_domains,
       business_hours_start: body.business_hours_start,
