@@ -20,6 +20,24 @@ export function DraftEditor({ draft }: { draft: Draft }) {
 
   const canEdit = ["pending_review", "needs_drafting"].includes(draft.status);
 
+  async function handleRegenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/regenerate`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed");
+      }
+      toast.success("Draft queued for regeneration");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleAction(action: "approve" | "reject") {
     setLoading(true);
     try {
@@ -116,6 +134,9 @@ export function DraftEditor({ draft }: { draft: Draft }) {
           </Button>
           <Button variant="destructive" onClick={() => handleAction("reject")} disabled={loading}>
             Reject
+          </Button>
+          <Button variant="secondary" onClick={handleRegenerate} disabled={loading}>
+            Regenerate
           </Button>
           <Button variant="outline" onClick={() => router.back()} disabled={loading}>
             Back
