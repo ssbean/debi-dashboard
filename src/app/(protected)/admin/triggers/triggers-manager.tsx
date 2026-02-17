@@ -30,7 +30,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
   const [examples, setExamples] = useState<StyleExample[]>([]);
   const [loadingExamples, setLoadingExamples] = useState(false);
   const [exampleDialogOpen, setExampleDialogOpen] = useState(false);
-  const [exampleForm, setExampleForm] = useState({ subject: "", body: "" });
+  const [exampleForm, setExampleForm] = useState({ body: "" });
   const [expandedExampleId, setExpandedExampleId] = useState<string | null>(null);
 
   const fetchExamples = useCallback(async (triggerId: string) => {
@@ -59,7 +59,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
       const newExample = await res.json();
       setExamples((prev) => [newExample, ...prev]);
       setExampleDialogOpen(false);
-      setExampleForm({ subject: "", body: "" });
+      setExampleForm({ body: "" });
       toast.success("Example added");
     } else {
       const data = await res.json();
@@ -259,16 +259,6 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                         </DialogHeader>
                         <div className="space-y-4">
                           <div className="space-y-2">
-                            <Label>Subject</Label>
-                            <Input
-                              value={exampleForm.subject}
-                              onChange={(e) =>
-                                setExampleForm((f) => ({ ...f, subject: e.target.value }))
-                              }
-                              placeholder="Example email subject..."
-                            />
-                          </div>
-                          <div className="space-y-2">
                             <Label>Body</Label>
                             <Textarea
                               value={exampleForm.body}
@@ -302,7 +292,6 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium">{ex.subject}</span>
                               <Badge variant="secondary">{ex.source}</Badge>
                             </div>
                             <div className="flex items-center gap-1">
