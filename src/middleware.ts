@@ -7,8 +7,7 @@ export default auth((req) => {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/cron") ||
-    pathname.startsWith("/api/debug")
+    pathname.startsWith("/api/cron")
   ) {
     return;
   }

@@ -13,12 +13,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let step = "init";
   const supabase = createServiceClient();
   const startTime = Date.now();
 
   try {
-    step = "settings";
     // Fetch settings
     const { data: settings, error: settingsErr } = await supabase
       .from("settings")
@@ -34,7 +32,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Settings not configured" }, { status: 500 });
     }
 
-    step = "triggers";
     // Fetch enabled triggers
     const { data: triggers, error: triggersErr } = await supabase
       .from("triggers")
@@ -51,7 +48,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: "No active triggers" });
     }
 
-    step = "gmail";
     // Fetch emails from last 10 minutes (overlap to avoid missing)
     const since = new Date(Date.now() - 10 * 60 * 1000);
     const domains = settings.company_domains.split(",").map((d: string) => d.trim());
@@ -130,7 +126,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ emailsScanned: emails.length, processed, matched, errors });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message.slice(0, 500), step }, { status: 500 });
+    logger.error("Poll-classify failed", "poll-classify", { error: String(error) });
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
