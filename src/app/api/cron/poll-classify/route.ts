@@ -13,36 +13,45 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let step = "init";
   const supabase = createServiceClient();
   const startTime = Date.now();
 
   try {
-    console.log("STEP:1 fetching settings");
+    step = "settings";
     // Fetch settings
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsErr } = await supabase
       .from("settings")
       .select("*")
       .eq("id", 1)
       .maybeSingle();
 
+    if (settingsErr) {
+      return NextResponse.json({ error: "settings query failed", detail: settingsErr.message }, { status: 500 });
+    }
+
     if (!settings) {
       return NextResponse.json({ error: "Settings not configured" }, { status: 500 });
     }
 
-    console.log("STEP:2 fetching triggers");
+    step = "triggers";
     // Fetch enabled triggers
-    const { data: triggers } = await supabase
+    const { data: triggers, error: triggersErr } = await supabase
       .from("triggers")
       .select("*")
       .eq("enabled", true)
       .is("deleted_at", null)
       .order("sort_order");
 
+    if (triggersErr) {
+      return NextResponse.json({ error: "triggers query failed", detail: triggersErr.message }, { status: 500 });
+    }
+
     if (!triggers?.length) {
       return NextResponse.json({ message: "No active triggers" });
     }
 
-    console.log("STEP:3 fetching emails, ceo:", settings.ceo_email, "domains:", settings.company_domains);
+    step = "gmail";
     // Fetch emails from last 10 minutes (overlap to avoid missing)
     const since = new Date(Date.now() - 10 * 60 * 1000);
     const domains = settings.company_domains.split(",").map((d: string) => d.trim());
@@ -122,9 +131,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ emailsScanned: emails.length, processed, matched, errors });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const code = (error as { code?: number })?.code;
-    const status = (error as { response?: { status?: number } })?.response?.status;
-    console.error("CRON_ERR", JSON.stringify({ msg: message.slice(0, 200), code, status }));
-    return NextResponse.json({ error: message, code, status }, { status: 500 });
+    return NextResponse.json({ error: message.slice(0, 500), step }, { status: 500 });
   }
 }
