@@ -118,7 +118,7 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      To: {draft.recipient_email ?? "—"} | From trigger: {draft.trigger_email_from}
+                      To: {draft.recipient_email ?? "—"}{draft.trigger_email_cc ? ` | CC: ${draft.trigger_email_cc}` : ""} | From trigger: {draft.trigger_email_from}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">

@@ -39,6 +39,7 @@ export interface EmailContent {
   messageId: string;
   threadId: string | null;
   from: string;
+  cc: string;
   subject: string;
   body: string;
   receivedAt: Date;
@@ -94,6 +95,7 @@ async function getEmailContent(
 
   const headers = res.data.payload?.headers ?? [];
   const from = headers.find((h) => h.name === "From")?.value ?? "";
+  const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
   const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
   const date = headers.find((h) => h.name === "Date")?.value;
 
@@ -112,6 +114,7 @@ async function getEmailContent(
     messageId,
     threadId: res.data.threadId ?? null,
     from,
+    cc,
     subject,
     body: body.slice(0, 2000),
     receivedAt: date ? new Date(date) : new Date(),
@@ -241,6 +244,7 @@ export async function sendEmail(
   body: string,
   threadId?: string | null,
   inReplyTo?: string | null,
+  cc?: string | null,
 ) {
   const gmail = getGmailClient(ceoEmail);
 
@@ -255,6 +259,7 @@ export async function sendEmail(
 
   const headers = [
     `To: ${to}`,
+    ...(cc ? [`Cc: ${cc}`] : []),
     `Subject: ${replySubject}`,
     `Content-Type: text/html; charset=utf-8`,
   ];

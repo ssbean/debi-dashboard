@@ -100,6 +100,17 @@ export function DraftEditor({ draft }: { draft: Draft }) {
               className="bg-muted"
             />
           </div>
+          {draft.trigger_email_cc && (
+            <div className="space-y-2">
+              <Label htmlFor="cc">CC</Label>
+              <Input
+                id="cc"
+                value={draft.trigger_email_cc}
+                disabled
+                className="bg-muted"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="subject">Subject</Label>
             <Input

@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
           draft.body,
           threadId,
           inReplyTo,
+          draft.trigger_email_cc,
         );
 
         await supabase
