@@ -27,11 +27,12 @@ export default async function DashboardPage() {
   // Email processing stats
   const { data: settings } = await supabase
     .from("settings")
-    .select("ceo_timezone")
+    .select("ceo_timezone, dev_redirect_emails")
     .eq("id", 1)
     .maybeSingle();
 
   const tz = settings?.ceo_timezone ?? "America/Los_Angeles";
+  const hasRedirect = process.env.DEV_MODE === "true" && !!settings?.dev_redirect_emails?.trim();
 
   const { count: totalScanned } = await supabase
     .from("processed_emails")
@@ -138,7 +139,7 @@ export default async function DashboardPage() {
                       {draft.status.replace("_", " ")}
                       {process.env.DEV_MODE === "true" &&
                         ["approved", "auto_approved"].includes(draft.status) &&
-                        " (paused)"}
+                        (hasRedirect ? " (redirected)" : " (paused)")}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       {formatDateShort(draft.created_at, tz)}
