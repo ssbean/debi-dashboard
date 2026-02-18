@@ -272,7 +272,7 @@ export async function sendEmail(
   const headers = [
     `To: ${actualTo}`,
     ...(actualCc ? [`Cc: ${actualCc}`] : []),
-    `Subject: ${replySubject}`,
+    `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,
     `Content-Type: text/html; charset=utf-8`,
   ];
 

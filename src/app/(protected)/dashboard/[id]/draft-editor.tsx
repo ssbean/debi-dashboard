@@ -20,6 +20,25 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
   const [loading, setLoading] = useState(false);
 
   const canEdit = ["pending_review", "needs_drafting"].includes(draft.status);
+  const canSendNow = ["approved", "auto_approved"].includes(draft.status);
+
+  async function handleSendNow() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/send-now`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to send");
+      }
+      toast.success("Email sent successfully");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleRegenerate() {
     setLoading(true);
@@ -152,6 +171,17 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
           </Button>
           <Button variant="secondary" onClick={handleRegenerate} disabled={loading}>
             Regenerate
+          </Button>
+          <Button variant="outline" onClick={() => router.back()} disabled={loading}>
+            Back
+          </Button>
+        </div>
+      )}
+
+      {canSendNow && (
+        <div className="flex gap-3">
+          <Button onClick={handleSendNow} disabled={loading}>
+            Send Now
           </Button>
           <Button variant="outline" onClick={() => router.back()} disabled={loading}>
             Back
