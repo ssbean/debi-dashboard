@@ -1,10 +1,19 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatDate } from "@/lib/format-date";
 import type { Draft } from "@/lib/types";
 
 export default async function HistoryPage() {
   const supabase = createServiceClient();
+
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("ceo_timezone")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const tz = settings?.ceo_timezone ?? "America/Los_Angeles";
 
   const { data } = await supabase
     .from("drafts")
@@ -39,9 +48,9 @@ export default async function HistoryPage() {
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {draft.sent_at
-                      ? new Date(draft.sent_at).toLocaleString()
+                      ? formatDate(draft.sent_at, tz)
                       : draft.updated_at
-                        ? new Date(draft.updated_at).toLocaleString()
+                        ? formatDate(draft.updated_at, tz)
                         : ""}
                   </span>
                 </div>

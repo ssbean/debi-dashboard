@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/format-date";
 import { TriggerButtons } from "./trigger-buttons";
 
 interface CronLog {
@@ -90,6 +91,14 @@ export default async function CronLogsPage({
 }) {
   const { job } = await searchParams;
   const supabase = createServiceClient();
+
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("ceo_timezone")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const tz = settings?.ceo_timezone ?? "America/Los_Angeles";
 
   // Summary stats (last 24h)
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -228,7 +237,7 @@ export default async function CronLogsPage({
                   <td colSpan={5} className="p-0">
                     <details>
                       <summary className="grid grid-cols-[1fr_1fr_0.7fr_2fr_0.7fr] px-4 py-3 cursor-pointer hover:bg-muted/30 list-none [&::-webkit-details-marker]:hidden">
-                        <span className="text-muted-foreground" title={new Date(log.started_at).toLocaleString()}>
+                        <span className="text-muted-foreground" title={formatDate(log.started_at, tz)}>
                           {timeAgo(log.started_at)}
                         </span>
                         <span>

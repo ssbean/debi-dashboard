@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { formatDateShort } from "@/lib/format-date";
 import type { Draft } from "@/lib/types";
 
 const statusColors: Record<string, string> = {
@@ -24,6 +25,14 @@ export default async function DashboardPage() {
     .limit(50);
 
   // Email processing stats
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("ceo_timezone")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const tz = settings?.ceo_timezone ?? "America/Los_Angeles";
+
   const { count: totalScanned } = await supabase
     .from("processed_emails")
     .select("*", { count: "exact", head: true });
@@ -132,7 +141,7 @@ export default async function DashboardPage() {
                         " (paused)"}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(draft.created_at).toLocaleDateString()}
+                      {formatDateShort(draft.created_at, tz)}
                     </span>
                   </div>
                 </CardContent>

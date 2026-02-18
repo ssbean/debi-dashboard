@@ -11,13 +11,16 @@ export default async function DraftDetailPage({
   const { id } = await params;
   const supabase = createServiceClient();
 
-  const { data: draft } = await supabase
-    .from("drafts")
-    .select("*, trigger:triggers(name, email_type, description, reply_in_thread)")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: draft }, { data: settings }] = await Promise.all([
+    supabase
+      .from("drafts")
+      .select("*, trigger:triggers(name, email_type, description, reply_in_thread)")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase.from("settings").select("ceo_timezone").eq("id", 1).maybeSingle(),
+  ]);
 
   if (!draft) notFound();
 
-  return <DraftEditor draft={draft as Draft} />;
+  return <DraftEditor draft={draft as Draft} timezone={settings?.ceo_timezone ?? "America/Los_Angeles"} />;
 }

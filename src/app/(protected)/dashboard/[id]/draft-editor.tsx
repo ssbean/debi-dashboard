@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { formatDate } from "@/lib/format-date";
 import type { Draft } from "@/lib/types";
 
-export function DraftEditor({ draft }: { draft: Draft }) {
+export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: string }) {
   const router = useRouter();
   const recipientEmail = draft.recipient_email ?? "";
   const subject = draft.subject ?? "";
@@ -135,7 +136,7 @@ export function DraftEditor({ draft }: { draft: Draft }) {
           </div>
           {draft.scheduled_send_at && (
             <p className="text-sm text-muted-foreground">
-              Scheduled: {new Date(draft.scheduled_send_at).toLocaleString()}
+              Scheduled: {formatDate(draft.scheduled_send_at, timezone)}
             </p>
           )}
         </CardContent>

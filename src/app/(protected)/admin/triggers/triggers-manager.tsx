@@ -19,7 +19,7 @@ import {
 import { toast } from "sonner";
 import type { Trigger, StyleExample } from "@/lib/types";
 
-export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[] }) {
+export function TriggersManager({ initialTriggers, timezone }: { initialTriggers: Trigger[]; timezone: string }) {
   const router = useRouter();
   const [triggers, setTriggers] = useState(initialTriggers);
 
@@ -331,7 +331,7 @@ export function TriggersManager({ initialTriggers }: { initialTriggers: Trigger[
                       <div key={i} className="text-xs space-y-0.5 border-b last:border-0 pb-1 last:pb-0">
                         <p className="font-medium truncate">{r.from}</p>
                         <p className="text-muted-foreground truncate">{r.subject}</p>
-                        <p className="text-muted-foreground">{new Date(r.date).toLocaleDateString()}</p>
+                        <p className="text-muted-foreground">{new Date(r.date).toLocaleDateString("en-US", { timeZone: timezone })}</p>
                       </div>
                     ))
                   )}
