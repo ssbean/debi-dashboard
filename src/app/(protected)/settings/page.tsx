@@ -19,7 +19,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
-      <SettingsForm initialSettings={data as Settings} />
+      <SettingsForm initialSettings={data as Settings} devMode={process.env.DEV_MODE === "true"} />
     </div>
   );
 }

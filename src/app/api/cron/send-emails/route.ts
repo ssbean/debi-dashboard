@@ -15,25 +15,27 @@ export async function GET(req: NextRequest) {
   const supabase = createServiceClient();
   const startedAt = new Date();
 
-  if (process.env.DEV_MODE === "true") {
-    logger.info("DEV_MODE active — skipping email send", "send-emails");
-    await logCronRun(supabase, "send-emails", startedAt, "success", {
-      emails_sent: 0,
-      emails_failed: 0,
-      errors: 0,
-    });
-    return NextResponse.json({ message: "DEV_MODE active, no emails sent" });
-  }
-
   try {
     const { data: settings } = await supabase
       .from("settings")
-      .select("ceo_email")
+      .select("ceo_email, dev_redirect_emails")
       .eq("id", 1)
       .maybeSingle();
 
     if (!settings) {
       return NextResponse.json({ error: "Settings not configured" }, { status: 500 });
+    }
+
+    // DEV_MODE: block sending unless redirect emails are configured
+    const redirectTo = process.env.DEV_MODE === "true" ? settings.dev_redirect_emails?.trim() || null : null;
+    if (process.env.DEV_MODE === "true" && !redirectTo) {
+      logger.info("DEV_MODE active, no redirect configured — skipping email send", "send-emails");
+      await logCronRun(supabase, "send-emails", startedAt, "success", {
+        emails_sent: 0,
+        emails_failed: 0,
+        errors: 0,
+      });
+      return NextResponse.json({ message: "DEV_MODE active, no emails sent" });
     }
 
     // Fetch drafts ready to send
@@ -82,6 +84,7 @@ export async function GET(req: NextRequest) {
           threadId,
           inReplyTo,
           draft.trigger_email_cc,
+          redirectTo,
         );
 
         await supabase

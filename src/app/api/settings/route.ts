@@ -33,6 +33,7 @@ export async function PUT(req: NextRequest) {
       business_hours_start: body.business_hours_start,
       business_hours_end: body.business_hours_end,
       holidays: body.holidays,
+      dev_redirect_emails: body.dev_redirect_emails || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", 1);

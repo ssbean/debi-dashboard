@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { createServiceClient } from "@/lib/supabase/server";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -18,11 +19,25 @@ export default async function ProtectedLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  let devBannerText: string | null = null;
+  if (process.env.DEV_MODE === "true") {
+    const supabase = createServiceClient();
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("dev_redirect_emails")
+      .eq("id", 1)
+      .maybeSingle();
+    const redirectEmails = settings?.dev_redirect_emails?.trim();
+    devBannerText = redirectEmails
+      ? `DEV MODE — Emails diverted to: ${redirectEmails}`
+      : "DEV MODE — Emails will not be sent";
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
-      {process.env.DEV_MODE === "true" && (
+      {devBannerText && (
         <div className="bg-amber-500 text-amber-950 text-center text-sm font-medium py-1.5">
-          DEV MODE — Emails will not be sent
+          {devBannerText}
         </div>
       )}
       <div className="flex flex-1">

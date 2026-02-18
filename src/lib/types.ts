@@ -69,6 +69,7 @@ export interface Settings {
   business_hours_start: string;
   business_hours_end: string;
   holidays: string[];
+  dev_redirect_emails: string | null;
   updated_at: string | null;
 }
 

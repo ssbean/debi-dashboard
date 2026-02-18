@@ -245,6 +245,7 @@ export async function sendEmail(
   threadId?: string | null,
   inReplyTo?: string | null,
   cc?: string | null,
+  redirectTo?: string | null,
 ) {
   const gmail = getGmailClient(ceoEmail);
 
@@ -255,11 +256,22 @@ export async function sendEmail(
       ? `Re: ${subject}`
       : subject;
 
-  const htmlBody = `<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
+  // Redirect: replace recipients and note originals in body
+  let actualTo = to;
+  let actualCc = cc;
+  let redirectNote = "";
+  if (redirectTo) {
+    logger.info(`Redirecting email from [To: ${to}] [CC: ${cc ?? "none"}] → ${redirectTo}`, "gmail");
+    actualTo = redirectTo;
+    actualCc = cc ? redirectTo : null;
+    redirectNote = `<div style="background:#fef3c7;padding:8px 12px;margin-bottom:16px;border-radius:4px;font-size:13px;"><strong>REDIRECTED</strong><br>Original To: ${escapeHtml(to)}<br>Original CC: ${escapeHtml(cc ?? "none")}</div>`;
+  }
+
+  const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
 
   const headers = [
-    `To: ${to}`,
-    ...(cc ? [`Cc: ${cc}`] : []),
+    `To: ${actualTo}`,
+    ...(actualCc ? [`Cc: ${actualCc}`] : []),
     `Subject: ${replySubject}`,
     `Content-Type: text/html; charset=utf-8`,
   ];

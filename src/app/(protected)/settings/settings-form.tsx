@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import type { Settings } from "@/lib/types";
 
-export function SettingsForm({ initialSettings }: { initialSettings: Settings }) {
+export function SettingsForm({ initialSettings, devMode }: { initialSettings: Settings; devMode: boolean }) {
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
   const [newHoliday, setNewHoliday] = useState("");
@@ -165,6 +165,25 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
           </div>
         </CardContent>
       </Card>
+
+      {devMode && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Dev Mode — Email Redirect</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label className="text-amber-900">Redirect All Emails To</Label>
+            <Input
+              value={settings.dev_redirect_emails ?? ""}
+              onChange={(e) => setSettings((s) => ({ ...s, dev_redirect_emails: e.target.value || null }))}
+              placeholder="you@example.com, other@example.com"
+            />
+            <p className="text-xs text-amber-800">
+              Comma-separated. When set, all outgoing emails will be sent to these addresses instead of the real recipients. Leave empty to block all sending.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Button onClick={handleSave} disabled={saving}>
         {saving ? "Saving..." : "Save Settings"}
