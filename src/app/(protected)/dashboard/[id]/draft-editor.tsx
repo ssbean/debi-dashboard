@@ -73,6 +73,9 @@ export function DraftEditor({ draft }: { draft: Draft }) {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p><strong>From:</strong> {draft.trigger_email_from}</p>
+          {draft.trigger_email_cc && (
+            <p><strong>CC:</strong> {draft.trigger_email_cc}</p>
+          )}
           <p><strong>Subject:</strong> {draft.trigger_email_subject}</p>
           {draft.trigger_email_body_snippet && (
             <p className="text-muted-foreground whitespace-pre-wrap">{draft.trigger_email_body_snippet}</p>
