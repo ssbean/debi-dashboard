@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { fetchNewEmails, fetchFilteredEmailIds } from "@/lib/gmail";
+import { fetchNewEmails, fetchFilteredEmailIds, fetchEmailById } from "@/lib/gmail";
 import { classifyEmail } from "@/lib/claude";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
@@ -92,6 +92,21 @@ export async function GET(req: NextRequest) {
 
     // Fetch all candidate emails
     const emails = await fetchNewEmails(settings.ceo_email, since, domains);
+
+    // Fetch any filter-matched emails not returned by fetchNewEmails (e.g. already-read emails)
+    const emailIds = new Set(emails.map((e) => e.messageId));
+    for (const [id] of filterMatchedIds) {
+      if (!emailIds.has(id)) {
+        try {
+          const email = await fetchEmailById(settings.ceo_email, id);
+          if (email) emails.push(email);
+        } catch (error) {
+          logger.error(`Failed to fetch filter-matched email ${id}`, "poll-classify", {
+            error: String(error),
+          });
+        }
+      }
+    }
 
     // Process in batches of 5
     const BATCH_SIZE = 5;

@@ -81,6 +81,14 @@ export async function fetchNewEmails(
   return emails;
 }
 
+export async function fetchEmailById(
+  ceoEmail: string,
+  messageId: string,
+): Promise<EmailContent | null> {
+  const gmail = getGmailClient(ceoEmail);
+  return getEmailContent(gmail, messageId);
+}
+
 async function getEmailContent(
   gmail: ReturnType<typeof google.gmail>,
   messageId: string,
@@ -128,7 +136,7 @@ export async function fetchFilteredEmailIds(
 ): Promise<string[]> {
   const gmail = getGmailClient(ceoEmail);
   const sinceEpoch = Math.floor(since.getTime() / 1000);
-  const query = `${filterQuery} is:unread after:${sinceEpoch}`;
+  const query = `${filterQuery} after:${sinceEpoch}`;
 
   const res = await withRetry(() =>
     gmail.users.messages.list({
