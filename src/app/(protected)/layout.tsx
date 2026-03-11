@@ -5,11 +5,19 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/admin/triggers", label: "Triggers" },
   { href: "/dashboard/history", label: "History" },
-  { href: "/admin/cron-logs", label: "Logs" },
   { href: "/settings", label: "Settings" },
 ];
+
+const adminNavItems = [
+  { href: "/admin/triggers", label: "Triggers" },
+  { href: "/admin/cron-logs", label: "Logs" },
+];
+
+const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+  .split(",")
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean);
 
 export default async function ProtectedLayout({
   children,
@@ -18,6 +26,8 @@ export default async function ProtectedLayout({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+
+  const isAdmin = adminEmails.includes(session.user.email?.toLowerCase() ?? "");
 
   let devBannerText: string | null = null;
   if (process.env.DEV_MODE === "true") {
@@ -56,6 +66,22 @@ export default async function ProtectedLayout({
               {item.label}
             </Link>
           ))}
+          {isAdmin && (
+            <div className="pt-4">
+              <p className="px-3 pb-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Admin
+              </p>
+              {adminNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="block rounded-md px-3 py-2 text-sm font-medium hover:bg-accent"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </nav>
       </aside>
       <div className="flex flex-1 flex-col">

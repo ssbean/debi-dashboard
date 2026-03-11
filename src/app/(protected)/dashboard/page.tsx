@@ -1,9 +1,19 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { formatDateShort } from "@/lib/format-date";
 import type { Draft } from "@/lib/types";
+
+const statusLabel: Record<string, string> = {
+  needs_drafting: "Processing…",
+  pending_review: "Needs Review",
+  approved: "Approved",
+  auto_approved: "Approved",
+  sent: "Sent",
+  failed: "Failed",
+  rejected: "Rejected",
+};
 
 const statusColors: Record<string, string> = {
   needs_drafting: "bg-yellow-100 text-yellow-800",
@@ -24,7 +34,6 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  // Email processing stats
   const { data: settings } = await supabase
     .from("settings")
     .select("ceo_timezone, dev_redirect_emails")
@@ -34,78 +43,15 @@ export default async function DashboardPage() {
   const tz = settings?.ceo_timezone ?? "America/Los_Angeles";
   const hasRedirect = process.env.DEV_MODE === "true" && !!settings?.dev_redirect_emails?.trim();
 
-  const { count: totalScanned } = await supabase
-    .from("processed_emails")
-    .select("*", { count: "exact", head: true });
-
-  const { count: totalMatched } = await supabase
-    .from("processed_emails")
-    .select("*", { count: "exact", head: true })
-    .eq("matched", true);
-
   const typedDrafts = (drafts ?? []) as Draft[];
-
   const pending = typedDrafts.filter((d) => d.status === "pending_review").length;
-  const autoApproved = typedDrafts.filter((d) => d.status === "auto_approved").length;
-  const sent = typedDrafts.filter((d) => d.status === "sent").length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-      </div>
-
-      <div className="grid grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Emails Scanned
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalScanned ?? 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Matched
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalMatched ?? 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending Review
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pending}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Auto-Approved
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{autoApproved}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Sent
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{sent}</div>
-          </CardContent>
-        </Card>
+        <h1 className="text-2xl font-bold">
+          {pending > 0 ? `${pending} Draft${pending === 1 ? "" : "s"} Awaiting Review` : "All Caught Up"}
+        </h1>
       </div>
 
       <div className="space-y-3">
@@ -128,15 +74,12 @@ export default async function DashboardPage() {
                       )}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      To: {draft.recipient_email ?? "—"}{draft.trigger_email_cc ? ` | CC: ${draft.trigger_email_cc}` : ""} | From trigger: {draft.trigger_email_from}
+                      To: {draft.recipient_email ?? draft.trigger_email_from}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground">
-                      {draft.confidence_score}%
-                    </span>
                     <Badge className={statusColors[draft.status] ?? ""}>
-                      {draft.status.replace("_", " ")}
+                      {statusLabel[draft.status] ?? draft.status}
                       {process.env.DEV_MODE === "true" &&
                         ["approved", "auto_approved"].includes(draft.status) &&
                         (hasRedirect ? " (redirected)" : " (paused)")}
