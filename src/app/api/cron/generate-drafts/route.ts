@@ -5,6 +5,7 @@ import { draftEmail } from "@/lib/claude";
 import { calculateSendTime } from "@/lib/scheduler";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
+import { notifyGoogleChat } from "@/lib/google-chat";
 import type { Settings, Trigger, StyleExample } from "@/lib/types";
 
 export const maxDuration = 60;
@@ -168,6 +169,14 @@ export async function GET(req: NextRequest) {
       input_tokens: totalInputTokens,
       output_tokens: totalOutputTokens,
     };
+
+    // Notify Google Chat if new pending_review drafts were created
+    if (pendingReview > 0 && (settings as Settings & { google_chat_webhook_url?: string | null }).google_chat_webhook_url) {
+      const webhookUrl = (settings as Settings & { google_chat_webhook_url: string }).google_chat_webhook_url;
+      const plural = pendingReview === 1 ? "draft" : "drafts";
+      const dashboardUrl = `${process.env.NEXTAUTH_URL ?? "https://debi-dashboard.vercel.app"}/dashboard`;
+      await notifyGoogleChat(webhookUrl, `${pendingReview} new ${plural} ready for your review: ${dashboardUrl}`);
+    }
 
     logger.info("Generate-drafts completed", "generate-drafts", { generated, errors });
     await logCronRun(supabase, "generate-drafts", startedAt, "success", stats);

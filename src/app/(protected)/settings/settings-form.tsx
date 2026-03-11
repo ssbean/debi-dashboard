@@ -166,6 +166,23 @@ export function SettingsForm({ initialSettings, devMode }: { initialSettings: Se
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label>Google Chat Webhook URL</Label>
+          <Input
+            value={settings.google_chat_webhook_url ?? ""}
+            onChange={(e) => setSettings((s) => ({ ...s, google_chat_webhook_url: e.target.value || null }))}
+            placeholder="https://chat.googleapis.com/v1/spaces/..."
+          />
+          <p className="text-xs text-muted-foreground">
+            Paste your Google Chat incoming webhook URL. A message will be sent when new drafts are ready for review.
+          </p>
+        </CardContent>
+      </Card>
+
       {devMode && (
         <Card className="border-amber-300 bg-amber-50">
           <CardHeader>
