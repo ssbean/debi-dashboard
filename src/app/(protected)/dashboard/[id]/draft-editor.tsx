@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/format-date";
 import type { Draft } from "@/lib/types";
 
-export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: string }) {
+export function DraftEditor({ draft, timezone, isAdmin = false }: { draft: Draft; timezone: string; isAdmin?: boolean }) {
   const router = useRouter();
   const recipientEmail = draft.recipient_email ?? "";
   const subject = draft.subject ?? "";
@@ -23,6 +23,7 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
   const isReplyAll = !!(draft.trigger?.reply_in_thread && draft.gmail_thread_id);
 
   const canEdit = ["pending_review", "needs_drafting"].includes(draft.status);
+  const canAdminEdit = isAdmin && draft.status !== "sent";
   const canSendNow = ["approved", "auto_approved"].includes(draft.status);
 
   async function handleSendNow() {
@@ -35,6 +36,64 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
       }
       toast.success("Email sent successfully");
       router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUnreject() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/unreject`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed");
+      }
+      toast.success("Draft moved back to pending review");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("Are you sure you want to delete this draft?")) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/delete`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed");
+      }
+      toast.success("Draft deleted");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast.error(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAdminSave() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draft.id}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed");
+      }
+      toast.success("Draft saved");
       router.refresh();
     } catch (error) {
       toast.error(String(error));
@@ -175,7 +234,7 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
               id="body"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              disabled={!canEdit}
+              disabled={!(canEdit || canAdminEdit)}
               rows={12}
             />
           </div>
@@ -212,6 +271,27 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
           <Button variant="outline" onClick={() => router.back()} disabled={loading}>
             Back
           </Button>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="border-t pt-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Admin Actions</p>
+          <div className="flex gap-3">
+            {canAdminEdit && body !== (draft.body ?? "") && (
+              <Button variant="secondary" onClick={handleAdminSave} disabled={loading}>
+                Save Edit
+              </Button>
+            )}
+            {draft.status === "rejected" && (
+              <Button variant="secondary" onClick={handleUnreject} disabled={loading}>
+                Un-reject
+              </Button>
+            )}
+            <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+              Delete Draft
+            </Button>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,8 @@
+import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { DraftEditor } from "./draft-editor";
+import { isAdmin as checkAdmin } from "@/lib/admin";
 import type { Draft } from "@/lib/types";
 
 export default async function DraftDetailPage({
@@ -9,7 +11,7 @@ export default async function DraftDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = createServiceClient();
+  const [session, supabase] = [await auth(), createServiceClient()];
 
   const [{ data: draft }, { data: settings }] = await Promise.all([
     supabase
@@ -22,5 +24,7 @@ export default async function DraftDetailPage({
 
   if (!draft) notFound();
 
-  return <DraftEditor draft={draft as Draft} timezone={settings?.ceo_timezone ?? "America/Los_Angeles"} />;
+  const isAdmin = checkAdmin(session?.user?.email);
+
+  return <DraftEditor draft={draft as Draft} timezone={settings?.ceo_timezone ?? "America/Los_Angeles"} isAdmin={isAdmin} />;
 }

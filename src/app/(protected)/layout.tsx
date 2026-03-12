@@ -2,6 +2,7 @@ import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
+import { isAdmin as checkAdmin } from "@/lib/admin";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -14,11 +15,6 @@ const adminNavItems = [
   { href: "/admin/cron-logs", label: "Logs" },
 ];
 
-const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
-
 export default async function ProtectedLayout({
   children,
 }: {
@@ -27,7 +23,7 @@ export default async function ProtectedLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = adminEmails.includes(session.user.email?.toLowerCase() ?? "");
+  const isAdmin = checkAdmin(session.user.email);
 
   let devBannerText: string | null = null;
   if (process.env.DEV_MODE === "true") {
