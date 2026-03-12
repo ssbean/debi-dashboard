@@ -42,6 +42,7 @@ export interface Draft {
   trigger_email_from: string;
   trigger_email_subject: string;
   trigger_email_body_snippet: string | null;
+  trigger_email_to: string | null;
   trigger_email_cc: string | null;
   recipient_email: string | null;
   recipient_name: string | null;
@@ -54,6 +55,8 @@ export interface Draft {
   scheduled_send_at: string | null;
   sent_at: string | null;
   send_error: string | null;
+  sent_to: string | null;
+  sent_cc: string | null;
   approved_by_email: string | null;
   created_at: string;
   updated_at: string | null;

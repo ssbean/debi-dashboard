@@ -45,6 +45,7 @@ export interface EmailContent {
   messageId: string;
   threadId: string | null;
   from: string;
+  to: string;
   cc: string;
   subject: string;
   body: string;
@@ -107,6 +108,7 @@ async function getEmailContent(
 
   const headers = res.data.payload?.headers ?? [];
   const from = headers.find((h) => h.name === "From")?.value ?? "";
+  const to = headers.find((h) => h.name === "To")?.value ?? "";
   const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
   const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
   const date = headers.find((h) => h.name === "Date")?.value;
@@ -126,6 +128,7 @@ async function getEmailContent(
     messageId,
     threadId: res.data.threadId ?? null,
     from,
+    to,
     cc,
     subject,
     body: body.slice(0, 2000),
