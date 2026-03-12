@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
   const subject = draft.subject ?? "";
   const [body, setBody] = useState(draft.body ?? "");
   const [loading, setLoading] = useState(false);
+  const [showRecipients, setShowRecipients] = useState(false);
+  const isReplyAll = !!(draft.trigger?.reply_in_thread && draft.gmail_thread_id);
 
   const canEdit = ["pending_review", "needs_drafting"].includes(draft.status);
   const canSendNow = ["approved", "auto_approved"].includes(draft.status);
@@ -117,11 +120,6 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
           <CardTitle className="text-sm text-muted-foreground">Draft Response</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {draft.trigger?.reply_in_thread && draft.gmail_thread_id && (
-            <p className="text-sm text-muted-foreground italic">
-              Reply-all to latest thread message at send time
-            </p>
-          )}
           {draft.sent_to ? (
             <div className="space-y-2">
               <Label>Sent To</Label>
@@ -133,9 +131,27 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
                 </>
               )}
             </div>
+          ) : isReplyAll ? (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowRecipients(!showRecipients)}
+                className="flex items-center gap-1.5 text-sm font-medium"
+              >
+                Reply-all to everyone on this thread
+                {showRecipients ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {showRecipients && (
+                <div className="space-y-1 text-sm text-muted-foreground pl-1">
+                  {draft.trigger_email_to && <p><strong>To:</strong> {draft.trigger_email_to}</p>}
+                  {draft.trigger_email_cc && <p><strong>CC:</strong> {draft.trigger_email_cc}</p>}
+                  <p className="text-xs italic pt-1">Final recipients resolved from the latest thread message at send time</p>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="recipient">Recipient Email</Label>
+              <Label htmlFor="recipient">Recipient</Label>
               <Input
                 id="recipient"
                 value={recipientEmail}
