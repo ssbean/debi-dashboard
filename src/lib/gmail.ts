@@ -2,6 +2,12 @@ import { google } from "googleapis";
 import { GmailError } from "./errors";
 import { logger } from "./logger";
 
+function getCeoEmail(): string {
+  const email = process.env.CEO_EMAIL;
+  if (!email) throw new Error("CEO_EMAIL environment variable is required");
+  return email;
+}
+
 function getGmailClient(userEmail: string) {
   const auth = new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -39,6 +45,7 @@ export interface EmailContent {
   messageId: string;
   threadId: string | null;
   from: string;
+  to: string;
   cc: string;
   subject: string;
   body: string;
@@ -46,11 +53,10 @@ export interface EmailContent {
 }
 
 export async function fetchNewEmails(
-  ceoEmail: string,
   since: Date,
   companyDomains: string[],
 ): Promise<EmailContent[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   const sinceEpoch = Math.floor(since.getTime() / 1000);
   const domainQuery = companyDomains.map((d) => `from:${d}`).join(" OR ");
   const query = `is:unread (${domainQuery}) after:${sinceEpoch}`;
@@ -82,10 +88,9 @@ export async function fetchNewEmails(
 }
 
 export async function fetchEmailById(
-  ceoEmail: string,
   messageId: string,
 ): Promise<EmailContent | null> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   return getEmailContent(gmail, messageId);
 }
 
@@ -103,6 +108,7 @@ async function getEmailContent(
 
   const headers = res.data.payload?.headers ?? [];
   const from = headers.find((h) => h.name === "From")?.value ?? "";
+  const to = headers.find((h) => h.name === "To")?.value ?? "";
   const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
   const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
   const date = headers.find((h) => h.name === "Date")?.value;
@@ -122,6 +128,7 @@ async function getEmailContent(
     messageId,
     threadId: res.data.threadId ?? null,
     from,
+    to,
     cc,
     subject,
     body: body.slice(0, 2000),
@@ -130,11 +137,10 @@ async function getEmailContent(
 }
 
 export async function fetchFilteredEmailIds(
-  ceoEmail: string,
   since: Date,
   filterQuery: string,
 ): Promise<string[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   const sinceEpoch = Math.floor(since.getTime() / 1000);
   const query = `${filterQuery} after:${sinceEpoch}`;
 
@@ -157,10 +163,9 @@ export interface FilterTestResult {
 }
 
 export async function testGmailFilter(
-  ceoEmail: string,
   filterQuery: string,
 ): Promise<FilterTestResult[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
 
   const res = await withRetry(() =>
     gmail.users.messages.list({
@@ -194,18 +199,21 @@ export async function testGmailFilter(
   return results;
 }
 
-export async function getLatestThreadMessageId(
-  ceoEmail: string,
+export type ThreadMessageHeaders = Pick<EmailContent, "messageId" | "to" | "cc" | "from"> & {
+  replyTo: string | null;
+};
+
+export async function getLatestThreadMessage(
   threadId: string,
-): Promise<string | null> {
-  const gmail = getGmailClient(ceoEmail);
+): Promise<ThreadMessageHeaders | null> {
+  const gmail = getGmailClient(getCeoEmail());
 
   const res = await withRetry(() =>
     gmail.users.threads.get({
       userId: "me",
       id: threadId,
       format: "metadata",
-      metadataHeaders: ["Message-ID"],
+      metadataHeaders: ["Message-ID", "From", "To", "Cc", "Reply-To"],
     }),
   );
 
@@ -213,14 +221,24 @@ export async function getLatestThreadMessageId(
   if (!messages?.length) return null;
 
   const lastMessage = messages[messages.length - 1];
-  const messageIdHeader = lastMessage.payload?.headers?.find(
-    (h) => h.name?.toLowerCase() === "message-id",
-  );
+  const headers = lastMessage.payload?.headers ?? [];
+  const getHeader = (name: string) =>
+    headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
 
-  return messageIdHeader?.value ?? null;
+  const messageId = getHeader("Message-ID");
+  if (!messageId) return null;
+
+  return {
+    messageId,
+    from: getHeader("From"),
+    to: getHeader("To"),
+    cc: getHeader("Cc"),
+    replyTo: getHeader("Reply-To") || null,
+  };
 }
 
-export async function getSignature(ceoEmail: string): Promise<string | null> {
+export async function getSignature(): Promise<string | null> {
+  const ceoEmail = getCeoEmail();
   const gmail = getGmailClient(ceoEmail);
 
   try {
@@ -245,19 +263,29 @@ function escapeHtml(text: string): string {
     .replace(/\n/g, "<br>");
 }
 
-export async function sendEmail(
-  ceoEmail: string,
-  to: string,
-  subject: string,
-  body: string,
-  threadId?: string | null,
-  inReplyTo?: string | null,
-  cc?: string | null,
-  redirectTo?: string | null,
-) {
+/** Strip CRLF sequences to prevent email header injection */
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]/g, "");
+}
+
+export interface SendEmailOptions {
+  to: string;
+  subject: string;
+  body: string;
+  threadId?: string | null;
+  inReplyTo?: string | null;
+  cc?: string | null;
+  redirectTo?: string | null;
+  signature?: string | null;
+}
+
+export async function sendEmail(options: SendEmailOptions) {
+  const { to, subject, body, threadId, inReplyTo, cc, redirectTo } = options;
+  const ceoEmail = getCeoEmail();
+  const ceoName = process.env.CEO_NAME ?? "Roland Spongberg";
   const gmail = getGmailClient(ceoEmail);
 
-  const signature = await getSignature(ceoEmail);
+  const signature = options.signature !== undefined ? options.signature : await getSignature();
 
   const replySubject =
     threadId && !subject.toLowerCase().startsWith("re:")
@@ -278,15 +306,17 @@ export async function sendEmail(
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
 
   const headers = [
-    `To: ${actualTo}`,
-    ...(actualCc ? [`Cc: ${actualCc}`] : []),
+    `From: ${sanitizeHeaderValue(ceoName)} <${sanitizeHeaderValue(ceoEmail)}>`,
+    `To: ${sanitizeHeaderValue(actualTo)}`,
+    ...(actualCc ? [`Cc: ${sanitizeHeaderValue(actualCc)}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,
     `Content-Type: text/html; charset=utf-8`,
   ];
 
   if (inReplyTo) {
-    headers.push(`In-Reply-To: ${inReplyTo}`);
-    headers.push(`References: ${inReplyTo}`);
+    const safeInReplyTo = sanitizeHeaderValue(inReplyTo);
+    headers.push(`In-Reply-To: ${safeInReplyTo}`);
+    headers.push(`References: ${safeInReplyTo}`);
   }
 
   const message = [...headers, "", htmlBody].join("\r\n");

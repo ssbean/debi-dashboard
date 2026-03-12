@@ -93,6 +93,9 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p><strong>From:</strong> {draft.trigger_email_from}</p>
+          {draft.trigger_email_to && (
+            <p><strong>To:</strong> {draft.trigger_email_to}</p>
+          )}
           {draft.trigger_email_cc && (
             <p><strong>CC:</strong> {draft.trigger_email_cc}</p>
           )}
@@ -114,21 +117,28 @@ export function DraftEditor({ draft, timezone }: { draft: Draft; timezone: strin
           <CardTitle className="text-sm text-muted-foreground">Draft Response</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="recipient">Recipient Email</Label>
-            <Input
-              id="recipient"
-              value={recipientEmail}
-              disabled
-              className="bg-muted"
-            />
-          </div>
-          {draft.trigger_email_cc && (
+          {draft.trigger?.reply_in_thread && draft.gmail_thread_id && (
+            <p className="text-sm text-muted-foreground italic">
+              Reply-all to latest thread message at send time
+            </p>
+          )}
+          {draft.sent_to ? (
             <div className="space-y-2">
-              <Label htmlFor="cc">CC</Label>
+              <Label>Sent To</Label>
+              <Input value={draft.sent_to} disabled className="bg-muted" />
+              {draft.sent_cc && (
+                <>
+                  <Label>Sent CC</Label>
+                  <Input value={draft.sent_cc} disabled className="bg-muted" />
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="recipient">Recipient Email</Label>
               <Input
-                id="cc"
-                value={draft.trigger_email_cc}
+                id="recipient"
+                value={recipientEmail}
                 disabled
                 className="bg-muted"
               />

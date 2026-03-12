@@ -67,45 +67,50 @@ export async function GET(req: NextRequest) {
     let totalOutputTokens = 0;
     const byTrigger: Record<string, number> = {};
 
-    // Filter phase: query Gmail API for each filter trigger to get matched message IDs
+    // Filter phase: query Gmail API for each filter trigger in parallel
     const filterMatchedIds = new Map<string, Trigger>();
-    for (const trigger of filterTriggers) {
-      try {
-        const matchedIds = await fetchFilteredEmailIds(
-          settings.ceo_email,
-          since,
-          trigger.gmail_filter_query!,
-        );
-        for (const id of matchedIds) {
-          if (!filterMatchedIds.has(id)) {
-            filterMatchedIds.set(id, trigger);
+    await Promise.all(
+      filterTriggers.map(async (trigger) => {
+        try {
+          const matchedIds = await fetchFilteredEmailIds(
+            since,
+            trigger.gmail_filter_query!,
+          );
+          for (const id of matchedIds) {
+            if (!filterMatchedIds.has(id)) {
+              filterMatchedIds.set(id, trigger);
+            }
           }
+        } catch (error) {
+          errors++;
+          logger.error(`Filter trigger "${trigger.name}" failed`, "poll-classify", {
+            error: String(error),
+            trigger_id: trigger.id,
+          });
         }
-      } catch (error) {
-        errors++;
-        logger.error(`Filter trigger "${trigger.name}" failed`, "poll-classify", {
-          error: String(error),
-          trigger_id: trigger.id,
-        });
-      }
-    }
+      }),
+    );
 
     // Fetch all candidate emails
-    const emails = await fetchNewEmails(settings.ceo_email, since, domains);
+    const emails = await fetchNewEmails(since, domains);
 
     // Fetch any filter-matched emails not returned by fetchNewEmails (e.g. already-read emails)
     const emailIds = new Set(emails.map((e) => e.messageId));
-    for (const [id] of filterMatchedIds) {
-      if (!emailIds.has(id)) {
+    const missingIds = [...filterMatchedIds.keys()].filter((id) => !emailIds.has(id));
+    const missingEmails = await Promise.all(
+      missingIds.map(async (id) => {
         try {
-          const email = await fetchEmailById(settings.ceo_email, id);
-          if (email) emails.push(email);
+          return await fetchEmailById(id);
         } catch (error) {
           logger.error(`Failed to fetch filter-matched email ${id}`, "poll-classify", {
             error: String(error),
           });
+          return null;
         }
-      }
+      }),
+    );
+    for (const email of missingEmails) {
+      if (email) emails.push(email);
     }
 
     // Process in batches of 5
@@ -148,6 +153,7 @@ export async function GET(req: NextRequest) {
                 trigger_email_from: email.from,
                 trigger_email_subject: email.subject,
                 trigger_email_body_snippet: email.body.slice(0, 500),
+                trigger_email_to: email.to || null,
                 trigger_email_cc: email.cc || null,
                 recipient_email: email.from,
                 recipient_name: null,
@@ -205,6 +211,7 @@ export async function GET(req: NextRequest) {
                 trigger_email_from: email.from,
                 trigger_email_subject: email.subject,
                 trigger_email_body_snippet: email.body.slice(0, 500),
+                trigger_email_to: email.to || null,
                 trigger_email_cc: email.cc || null,
                 recipient_email: result.recipient_email,
                 recipient_name: result.recipient_name,

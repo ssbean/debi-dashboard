@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendEmail, getLatestThreadMessageId } from "@/lib/gmail";
+import { getSignature } from "@/lib/gmail";
+import { sendDraft } from "@/lib/send-draft";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: settings } = await supabase
       .from("settings")
-      .select("ceo_email, dev_redirect_emails")
+      .select("dev_redirect_emails")
       .eq("id", 1)
       .maybeSingle();
 
@@ -60,32 +61,12 @@ export async function GET(req: NextRequest) {
     let sent = 0;
     let failed = 0;
 
+    // Cache signature once for the entire batch
+    const signature = await getSignature();
+
     for (const draft of drafts) {
       try {
-        if (!draft.recipient_email || !draft.subject || !draft.body) {
-          logger.warn(`Draft ${draft.id} missing required send fields`, "send-emails");
-          continue;
-        }
-
-        const threadId =
-          draft.trigger?.reply_in_thread ? draft.gmail_thread_id : null;
-
-        // Fetch latest message ID for proper threading headers
-        let inReplyTo: string | null = null;
-        if (threadId) {
-          inReplyTo = await getLatestThreadMessageId(settings.ceo_email, threadId);
-        }
-
-        await sendEmail(
-          settings.ceo_email,
-          draft.recipient_email,
-          draft.subject,
-          draft.body,
-          threadId,
-          inReplyTo,
-          draft.trigger_email_cc,
-          redirectTo,
-        );
+        await sendDraft(draft, supabase, { redirectTo, signature });
 
         await supabase
           .from("drafts")
@@ -122,7 +103,6 @@ export async function GET(req: NextRequest) {
     const stats = {
       emails_sent: sent,
       emails_failed: failed,
-      errors: failed,
     };
 
     logger.info("Send-emails completed", "send-emails", { sent, failed });

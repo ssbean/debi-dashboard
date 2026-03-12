@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { sendEmail, getLatestThreadMessageId } from "@/lib/gmail";
+import { getSignature } from "@/lib/gmail";
+import { sendDraft } from "@/lib/send-draft";
 import { logger } from "@/lib/logger";
 
 export async function POST(
@@ -31,13 +32,13 @@ export async function POST(
     return NextResponse.json({ error: "Draft must be approved to send" }, { status: 400 });
   }
 
-  if (!draft.recipient_email || !draft.subject || !draft.body) {
-    return NextResponse.json({ error: "Draft missing required fields (recipient, subject, body)" }, { status: 400 });
+  if (!draft.subject || !draft.body) {
+    return NextResponse.json({ error: "Draft missing required fields (subject, body)" }, { status: 400 });
   }
 
   const { data: settings } = await serviceClient
     .from("settings")
-    .select("ceo_email, dev_redirect_emails")
+    .select("dev_redirect_emails")
     .eq("id", 1)
     .maybeSingle();
 
@@ -51,23 +52,8 @@ export async function POST(
   }
 
   try {
-    const threadId = draft.trigger?.reply_in_thread ? draft.gmail_thread_id : null;
-
-    let inReplyTo: string | null = null;
-    if (threadId) {
-      inReplyTo = await getLatestThreadMessageId(settings.ceo_email, threadId);
-    }
-
-    await sendEmail(
-      settings.ceo_email,
-      draft.recipient_email,
-      draft.subject,
-      draft.body,
-      threadId,
-      inReplyTo,
-      draft.trigger_email_cc,
-      redirectTo,
-    );
+    const signature = await getSignature();
+    await sendDraft(draft, serviceClient, { redirectTo, signature });
 
     await serviceClient
       .from("drafts")
