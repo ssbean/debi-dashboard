@@ -280,6 +280,7 @@ export async function sendEmail(
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
 
   const headers = [
+    `From: Roland Spongberg <${ceoEmail}>`,
     `To: ${actualTo}`,
     ...(actualCc ? [`Cc: ${actualCc}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,
