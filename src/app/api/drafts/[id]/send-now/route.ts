@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { getSignature } from "@/lib/gmail";
 import { sendDraft } from "@/lib/send-draft";
 import { logger } from "@/lib/logger";
 
@@ -51,7 +52,8 @@ export async function POST(
   }
 
   try {
-    await sendDraft(draft, serviceClient, { redirectTo });
+    const signature = await getSignature();
+    await sendDraft(draft, serviceClient, { redirectTo, signature });
 
     await serviceClient
       .from("drafts")

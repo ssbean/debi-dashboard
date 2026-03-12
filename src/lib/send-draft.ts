@@ -145,11 +145,18 @@ export async function sendDraft(
   );
 
   // Persist actual recipients for audit trail
-  await supabase
+  const { error: auditError } = await supabase
     .from("drafts")
     .update({
       sent_to: to,
       sent_cc: cc,
     })
     .eq("id", draft.id);
+
+  if (auditError) {
+    logger.warn(
+      `Failed to persist sent_to/sent_cc for draft ${draft.id}: ${auditError.message}`,
+      "send-draft",
+    );
+  }
 }

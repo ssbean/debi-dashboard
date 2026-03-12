@@ -237,13 +237,6 @@ export async function getLatestThreadMessage(
   };
 }
 
-/** @deprecated Use getLatestThreadMessage() instead */
-export async function getLatestThreadMessageId(
-  threadId: string,
-): Promise<string | null> {
-  const msg = await getLatestThreadMessage(threadId);
-  return msg?.messageId ?? null;
-}
 
 export async function getSignature(): Promise<string | null> {
   const ceoEmail = getCeoEmail();
@@ -269,6 +262,11 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\n/g, "<br>");
+}
+
+/** Strip CRLF sequences to prevent email header injection */
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n]/g, "");
 }
 
 export async function sendEmail(
@@ -305,16 +303,17 @@ export async function sendEmail(
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
 
   const headers = [
-    `From: Roland Spongberg <${ceoEmail}>`,
-    `To: ${actualTo}`,
-    ...(actualCc ? [`Cc: ${actualCc}`] : []),
+    `From: Roland Spongberg <${sanitizeHeaderValue(ceoEmail)}>`,
+    `To: ${sanitizeHeaderValue(actualTo)}`,
+    ...(actualCc ? [`Cc: ${sanitizeHeaderValue(actualCc)}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,
     `Content-Type: text/html; charset=utf-8`,
   ];
 
   if (inReplyTo) {
-    headers.push(`In-Reply-To: ${inReplyTo}`);
-    headers.push(`References: ${inReplyTo}`);
+    const safeInReplyTo = sanitizeHeaderValue(inReplyTo);
+    headers.push(`In-Reply-To: ${safeInReplyTo}`);
+    headers.push(`References: ${safeInReplyTo}`);
   }
 
   const message = [...headers, "", htmlBody].join("\r\n");
