@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data: settings } = await supabase
       .from("settings")
-      .select("ceo_email, dev_redirect_emails")
+      .select("dev_redirect_emails")
       .eq("id", 1)
       .maybeSingle();
 
@@ -73,11 +73,10 @@ export async function GET(req: NextRequest) {
         // Fetch latest message ID for proper threading headers
         let inReplyTo: string | null = null;
         if (threadId) {
-          inReplyTo = await getLatestThreadMessageId(settings.ceo_email, threadId);
+          inReplyTo = await getLatestThreadMessageId(threadId);
         }
 
         await sendEmail(
-          settings.ceo_email,
           draft.recipient_email,
           draft.subject,
           draft.body,

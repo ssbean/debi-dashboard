@@ -37,7 +37,7 @@ export async function POST(
 
   const { data: settings } = await serviceClient
     .from("settings")
-    .select("ceo_email, dev_redirect_emails")
+    .select("dev_redirect_emails")
     .eq("id", 1)
     .maybeSingle();
 
@@ -55,11 +55,10 @@ export async function POST(
 
     let inReplyTo: string | null = null;
     if (threadId) {
-      inReplyTo = await getLatestThreadMessageId(settings.ceo_email, threadId);
+      inReplyTo = await getLatestThreadMessageId(threadId);
     }
 
     await sendEmail(
-      settings.ceo_email,
       draft.recipient_email,
       draft.subject,
       draft.body,

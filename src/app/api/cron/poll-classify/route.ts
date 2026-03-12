@@ -72,7 +72,6 @@ export async function GET(req: NextRequest) {
     for (const trigger of filterTriggers) {
       try {
         const matchedIds = await fetchFilteredEmailIds(
-          settings.ceo_email,
           since,
           trigger.gmail_filter_query!,
         );
@@ -91,14 +90,14 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch all candidate emails
-    const emails = await fetchNewEmails(settings.ceo_email, since, domains);
+    const emails = await fetchNewEmails(since, domains);
 
     // Fetch any filter-matched emails not returned by fetchNewEmails (e.g. already-read emails)
     const emailIds = new Set(emails.map((e) => e.messageId));
     for (const [id] of filterMatchedIds) {
       if (!emailIds.has(id)) {
         try {
-          const email = await fetchEmailById(settings.ceo_email, id);
+          const email = await fetchEmailById(id);
           if (email) emails.push(email);
         } catch (error) {
           logger.error(`Failed to fetch filter-matched email ${id}`, "poll-classify", {

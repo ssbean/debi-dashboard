@@ -2,6 +2,12 @@ import { google } from "googleapis";
 import { GmailError } from "./errors";
 import { logger } from "./logger";
 
+function getCeoEmail(): string {
+  const email = process.env.CEO_EMAIL;
+  if (!email) throw new Error("CEO_EMAIL environment variable is required");
+  return email;
+}
+
 function getGmailClient(userEmail: string) {
   const auth = new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -46,11 +52,10 @@ export interface EmailContent {
 }
 
 export async function fetchNewEmails(
-  ceoEmail: string,
   since: Date,
   companyDomains: string[],
 ): Promise<EmailContent[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   const sinceEpoch = Math.floor(since.getTime() / 1000);
   const domainQuery = companyDomains.map((d) => `from:${d}`).join(" OR ");
   const query = `is:unread (${domainQuery}) after:${sinceEpoch}`;
@@ -82,10 +87,9 @@ export async function fetchNewEmails(
 }
 
 export async function fetchEmailById(
-  ceoEmail: string,
   messageId: string,
 ): Promise<EmailContent | null> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   return getEmailContent(gmail, messageId);
 }
 
@@ -130,11 +134,10 @@ async function getEmailContent(
 }
 
 export async function fetchFilteredEmailIds(
-  ceoEmail: string,
   since: Date,
   filterQuery: string,
 ): Promise<string[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
   const sinceEpoch = Math.floor(since.getTime() / 1000);
   const query = `${filterQuery} after:${sinceEpoch}`;
 
@@ -157,10 +160,9 @@ export interface FilterTestResult {
 }
 
 export async function testGmailFilter(
-  ceoEmail: string,
   filterQuery: string,
 ): Promise<FilterTestResult[]> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
 
   const res = await withRetry(() =>
     gmail.users.messages.list({
@@ -195,10 +197,9 @@ export async function testGmailFilter(
 }
 
 export async function getLatestThreadMessageId(
-  ceoEmail: string,
   threadId: string,
 ): Promise<string | null> {
-  const gmail = getGmailClient(ceoEmail);
+  const gmail = getGmailClient(getCeoEmail());
 
   const res = await withRetry(() =>
     gmail.users.threads.get({
@@ -220,7 +221,8 @@ export async function getLatestThreadMessageId(
   return messageIdHeader?.value ?? null;
 }
 
-export async function getSignature(ceoEmail: string): Promise<string | null> {
+export async function getSignature(): Promise<string | null> {
+  const ceoEmail = getCeoEmail();
   const gmail = getGmailClient(ceoEmail);
 
   try {
@@ -246,7 +248,6 @@ function escapeHtml(text: string): string {
 }
 
 export async function sendEmail(
-  ceoEmail: string,
   to: string,
   subject: string,
   body: string,
@@ -255,9 +256,10 @@ export async function sendEmail(
   cc?: string | null,
   redirectTo?: string | null,
 ) {
+  const ceoEmail = getCeoEmail();
   const gmail = getGmailClient(ceoEmail);
 
-  const signature = await getSignature(ceoEmail);
+  const signature = await getSignature();
 
   const replySubject =
     threadId && !subject.toLowerCase().startsWith("re:")

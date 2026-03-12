@@ -63,7 +63,6 @@ export interface Draft {
 export interface Settings {
   id: number;
   confidence_threshold: number;
-  ceo_email: string;
   ceo_timezone: string;
   company_domains: string;
   business_hours_start: string;
