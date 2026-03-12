@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { draftEmail } from "@/lib/claude";
+import { draftEmail, summarizeEmail } from "@/lib/claude";
 import { calculateSendTime } from "@/lib/scheduler";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
@@ -133,6 +133,16 @@ export async function GET(req: NextRequest) {
           pendingReviewDrafts.push({ id: draft.id, subject: replySubject });
         }
 
+        // Generate summary for filter-matched drafts that skipped LLM classification
+        let summary = draft.trigger_email_summary;
+        if (!summary) {
+          summary = await summarizeEmail(
+            draft.trigger_email_from,
+            draft.trigger_email_subject,
+            draft.trigger_email_body_snippet ?? "",
+          );
+        }
+
         await supabase
           .from("drafts")
           .update({
@@ -141,6 +151,7 @@ export async function GET(req: NextRequest) {
             original_body: result.body,
             status: newStatus,
             scheduled_send_at: sendTime.toISOString(),
+            trigger_email_summary: summary || null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", draft.id);

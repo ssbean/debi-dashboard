@@ -216,6 +216,7 @@ export async function GET(req: NextRequest) {
                 recipient_email: result.recipient_email,
                 recipient_name: result.recipient_name,
                 confidence_score: result.confidence,
+                trigger_email_summary: result.summary || null,
                 status: "needs_drafting",
               });
               matched++;

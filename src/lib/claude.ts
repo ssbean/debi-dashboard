@@ -14,6 +14,7 @@ const ClassificationSchema = z.object({
   recipient_email: z.string().email().nullable(),
   recipient_name: z.string().nullable(),
   reasoning: z.string(),
+  summary: z.string().nullable().optional(),
 });
 
 // Draft schema
@@ -52,7 +53,8 @@ Rules:
 - Only match if clearly relevant to a trigger
 - Confidence 0-100: 90+ = very clear match, 70-89 = likely match, below 70 = uncertain
 - Extract recipient email and name if mentioned in the email
-- If no match, set matched=false and trigger_id=null`,
+- If no match, set matched=false and trigger_id=null
+- Always include a "summary" field: a 1-2 sentence plain-language summary of the email for a non-technical reader. Focus on who/what is being recognized and key details (store names, metrics, achievements). Example: "Bryan congratulated the Chili's Brownsville team for hitting $42K in weekly sales, their best week this quarter."`,
           cache_control: { type: "ephemeral" },
         },
         {
@@ -98,6 +100,35 @@ Rules:
   } catch (error) {
     if (error instanceof ClaudeError) throw error;
     throw new ClaudeError(`Classification failed: ${error}`);
+  }
+}
+
+export async function summarizeEmail(
+  emailFrom: string,
+  emailSubject: string,
+  emailBody: string,
+): Promise<string> {
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 200,
+      messages: [
+        {
+          role: "user",
+          content: `Summarize this email in 1-2 sentences for a non-technical reader. Focus on who/what is being recognized, key details like store names, metrics, and achievements.
+
+From: ${emailFrom}
+Subject: ${emailSubject}
+
+${emailBody.slice(0, 500)}`,
+        },
+      ],
+    });
+
+    const textBlock = response.content.find((b) => b.type === "text");
+    return textBlock?.type === "text" ? textBlock.text : "";
+  } catch {
+    return "";
   }
 }
 

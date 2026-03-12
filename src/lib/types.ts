@@ -42,6 +42,7 @@ export interface Draft {
   trigger_email_from: string;
   trigger_email_subject: string;
   trigger_email_body_snippet: string | null;
+  trigger_email_summary: string | null;
   trigger_email_to: string | null;
   trigger_email_cc: string | null;
   recipient_email: string | null;
