@@ -66,11 +66,6 @@ export async function GET(req: NextRequest) {
 
     for (const draft of drafts) {
       try {
-        if (!draft.subject || !draft.body) {
-          logger.warn(`Draft ${draft.id} missing required send fields`, "send-emails");
-          continue;
-        }
-
         await sendDraft(draft, supabase, { redirectTo, signature });
 
         await supabase
@@ -108,7 +103,6 @@ export async function GET(req: NextRequest) {
     const stats = {
       emails_sent: sent,
       emails_failed: failed,
-      errors: failed,
     };
 
     logger.info("Send-emails completed", "send-emails", { sent, failed });

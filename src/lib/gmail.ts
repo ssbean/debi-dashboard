@@ -237,7 +237,6 @@ export async function getLatestThreadMessage(
   };
 }
 
-
 export async function getSignature(): Promise<string | null> {
   const ceoEmail = getCeoEmail();
   const gmail = getGmailClient(ceoEmail);
