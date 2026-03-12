@@ -279,11 +279,12 @@ export async function sendEmail(
   inReplyTo?: string | null,
   cc?: string | null,
   redirectTo?: string | null,
+  cachedSignature?: string | null,
 ) {
   const ceoEmail = getCeoEmail();
   const gmail = getGmailClient(ceoEmail);
 
-  const signature = await getSignature();
+  const signature = cachedSignature !== undefined ? cachedSignature : await getSignature();
 
   const replySubject =
     threadId && !subject.toLowerCase().startsWith("re:")
