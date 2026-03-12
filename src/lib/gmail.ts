@@ -199,9 +199,13 @@ export async function testGmailFilter(
   return results;
 }
 
-export async function getLatestThreadMessageId(
+export type ThreadMessageHeaders = Pick<EmailContent, "messageId" | "to" | "cc" | "from"> & {
+  replyTo: string | null;
+};
+
+export async function getLatestThreadMessage(
   threadId: string,
-): Promise<string | null> {
+): Promise<ThreadMessageHeaders | null> {
   const gmail = getGmailClient(getCeoEmail());
 
   const res = await withRetry(() =>
@@ -209,7 +213,7 @@ export async function getLatestThreadMessageId(
       userId: "me",
       id: threadId,
       format: "metadata",
-      metadataHeaders: ["Message-ID"],
+      metadataHeaders: ["Message-ID", "From", "To", "Cc", "Reply-To"],
     }),
   );
 
@@ -217,11 +221,28 @@ export async function getLatestThreadMessageId(
   if (!messages?.length) return null;
 
   const lastMessage = messages[messages.length - 1];
-  const messageIdHeader = lastMessage.payload?.headers?.find(
-    (h) => h.name?.toLowerCase() === "message-id",
-  );
+  const headers = lastMessage.payload?.headers ?? [];
+  const getHeader = (name: string) =>
+    headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
 
-  return messageIdHeader?.value ?? null;
+  const messageId = getHeader("Message-ID");
+  if (!messageId) return null;
+
+  return {
+    messageId,
+    from: getHeader("From"),
+    to: getHeader("To"),
+    cc: getHeader("Cc"),
+    replyTo: getHeader("Reply-To") || null,
+  };
+}
+
+/** @deprecated Use getLatestThreadMessage() instead */
+export async function getLatestThreadMessageId(
+  threadId: string,
+): Promise<string | null> {
+  const msg = await getLatestThreadMessage(threadId);
+  return msg?.messageId ?? null;
 }
 
 export async function getSignature(): Promise<string | null> {
