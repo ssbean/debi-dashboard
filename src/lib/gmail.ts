@@ -269,20 +269,24 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]/g, "");
 }
 
-export async function sendEmail(
-  to: string,
-  subject: string,
-  body: string,
-  threadId?: string | null,
-  inReplyTo?: string | null,
-  cc?: string | null,
-  redirectTo?: string | null,
-  cachedSignature?: string | null,
-) {
+export interface SendEmailOptions {
+  to: string;
+  subject: string;
+  body: string;
+  threadId?: string | null;
+  inReplyTo?: string | null;
+  cc?: string | null;
+  redirectTo?: string | null;
+  signature?: string | null;
+}
+
+export async function sendEmail(options: SendEmailOptions) {
+  const { to, subject, body, threadId, inReplyTo, cc, redirectTo } = options;
   const ceoEmail = getCeoEmail();
+  const ceoName = process.env.CEO_NAME ?? "Roland Spongberg";
   const gmail = getGmailClient(ceoEmail);
 
-  const signature = cachedSignature !== undefined ? cachedSignature : await getSignature();
+  const signature = options.signature !== undefined ? options.signature : await getSignature();
 
   const replySubject =
     threadId && !subject.toLowerCase().startsWith("re:")
@@ -303,7 +307,7 @@ export async function sendEmail(
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
 
   const headers = [
-    `From: Roland Spongberg <${sanitizeHeaderValue(ceoEmail)}>`,
+    `From: ${sanitizeHeaderValue(ceoName)} <${sanitizeHeaderValue(ceoEmail)}>`,
     `To: ${sanitizeHeaderValue(actualTo)}`,
     ...(actualCc ? [`Cc: ${sanitizeHeaderValue(actualCc)}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,

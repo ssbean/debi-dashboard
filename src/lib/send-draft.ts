@@ -1,5 +1,5 @@
 import { parseAddressList } from "email-addresses";
-import { getLatestThreadMessage, sendEmail, getSignature } from "./gmail";
+import { getLatestThreadMessage, sendEmail } from "./gmail";
 import { logger } from "./logger";
 import type { Draft, Trigger } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -133,16 +133,16 @@ export async function sendDraft(
     throw new Error(`Draft ${draft.id} missing required fields (subject, body)`);
   }
 
-  await sendEmail(
+  await sendEmail({
     to,
-    draft.subject,
-    draft.body,
+    subject: draft.subject,
+    body: draft.body,
     threadId,
     inReplyTo,
     cc,
-    options.redirectTo,
-    options.signature,
-  );
+    redirectTo: options.redirectTo,
+    signature: options.signature,
+  });
 
   // Persist actual recipients for audit trail
   const { error: auditError } = await supabase
