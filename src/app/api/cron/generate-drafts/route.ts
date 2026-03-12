@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
     let totalConfidence = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    const pendingReviewDrafts: { id: string; subject: string }[] = [];
 
     for (const draft of drafts) {
       try {
@@ -128,11 +129,14 @@ export async function GET(req: NextRequest) {
           ? draft.trigger_email_subject
           : `Re: ${draft.trigger_email_subject}`;
 
+        if (newStatus === "pending_review") {
+          pendingReviewDrafts.push({ id: draft.id, subject: replySubject });
+        }
+
         await supabase
           .from("drafts")
           .update({
             subject: replySubject,
-            recipient_email: draft.trigger_email_from,
             body: result.body,
             original_body: result.body,
             status: newStatus,
@@ -173,9 +177,12 @@ export async function GET(req: NextRequest) {
     // Notify Google Chat if new pending_review drafts were created
     if (pendingReview > 0 && (settings as Settings & { google_chat_webhook_url?: string | null }).google_chat_webhook_url) {
       const webhookUrl = (settings as Settings & { google_chat_webhook_url: string }).google_chat_webhook_url;
+      const baseUrl = process.env.NEXTAUTH_URL ?? "https://debi-dashboard.vercel.app";
       const plural = pendingReview === 1 ? "draft" : "drafts";
-      const dashboardUrl = `${process.env.NEXTAUTH_URL ?? "https://debi-dashboard.vercel.app"}/dashboard`;
-      await notifyGoogleChat(webhookUrl, `${pendingReview} new ${plural} ready for your review: ${dashboardUrl}`);
+      const draftLinks = pendingReviewDrafts
+        .map((d) => `• <${baseUrl}/dashboard/${d.id}|${d.subject}>`)
+        .join("\n");
+      await notifyGoogleChat(webhookUrl, `${pendingReview} new ${plural} ready for review:\n${draftLinks}`);
     }
 
     logger.info("Generate-drafts completed", "generate-drafts", { generated, errors });
