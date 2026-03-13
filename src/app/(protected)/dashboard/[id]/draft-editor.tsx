@@ -351,12 +351,31 @@ export function DraftEditor({ draft, timezone, isAdmin = false }: { draft: Draft
           />
         </div>
 
-        {draft.scheduled_send_at && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        {draft.scheduled_send_at ? (
+          new Date(draft.scheduled_send_at) > new Date() ? (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              {draft.status === "sent"
+                ? `Sent ${formatDate(draft.scheduled_send_at, timezone)}`
+                : `Scheduled for ${formatDate(draft.scheduled_send_at, timezone)}`}
+            </div>
+          ) : canEdit ? (
+            <div className="flex items-center gap-1.5 text-sm text-amber-600">
+              <Clock className="h-3.5 w-3.5" />
+              Original send time has passed — will be rescheduled on approval
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              Was scheduled for {formatDate(draft.scheduled_send_at, timezone)}
+            </div>
+          )
+        ) : canEdit ? (
+          <div className="flex items-center gap-1.5 text-sm text-amber-600">
             <Clock className="h-3.5 w-3.5" />
-            Scheduled for {formatDate(draft.scheduled_send_at, timezone)}
+            Send time will be scheduled on approval
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Primary Actions */}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
+import { calculateSendTimeAfterApproval } from "@/lib/scheduler";
+import type { Settings } from "@/lib/types";
 
 export async function POST(
   _req: NextRequest,
@@ -29,10 +31,37 @@ export async function POST(
     return NextResponse.json({ error: "Only rejected drafts can be un-rejected" }, { status: 400 });
   }
 
+  // Recalculate send time since reject cleared it
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("*")
+    .eq("id", 1)
+    .maybeSingle();
+
+  let scheduledSendAt: string | null = null;
+  if (settings) {
+    const { data: scheduledDrafts } = await supabase
+      .from("drafts")
+      .select("scheduled_send_at")
+      .in("status", ["approved", "auto_approved", "pending_review"])
+      .not("scheduled_send_at", "is", null);
+
+    const existingTimes = (scheduledDrafts ?? [])
+      .map((d: { scheduled_send_at: string | null }) => d.scheduled_send_at)
+      .filter((t): t is string => t !== null)
+      .map((t) => new Date(t));
+
+    scheduledSendAt = calculateSendTimeAfterApproval(
+      settings as Settings,
+      existingTimes,
+    ).toISOString();
+  }
+
   await supabase
     .from("drafts")
     .update({
       status: "pending_review",
+      scheduled_send_at: scheduledSendAt,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
