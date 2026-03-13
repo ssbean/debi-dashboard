@@ -113,14 +113,47 @@ async function getEmailContent(
   const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
   const date = headers.find((h) => h.name === "Date")?.value;
 
+  // Recursively find a MIME part by type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function findPart(parts: any[] | undefined, mimeType: string): any | null {
+    if (!parts) return null;
+    for (const part of parts) {
+      if (part.mimeType === mimeType && part.body?.data) return part;
+      const nested = findPart(part.parts, mimeType);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  function stripHtml(html: string): string {
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/?(p|div|tr|li|h[1-6])[^>]*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&#\d+;/g, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
   let body = "";
   const payload = res.data.payload;
   if (payload?.body?.data) {
     body = Buffer.from(payload.body.data, "base64").toString("utf-8");
-  } else if (payload?.parts) {
-    const textPart = payload.parts.find((p) => p.mimeType === "text/plain");
-    if (textPart?.body?.data) {
+  } else {
+    const textPart = findPart(payload?.parts, "text/plain");
+    if (textPart) {
       body = Buffer.from(textPart.body.data, "base64").toString("utf-8");
+    } else {
+      const htmlPart = findPart(payload?.parts, "text/html");
+      if (htmlPart) {
+        body = stripHtml(Buffer.from(htmlPart.body.data, "base64").toString("utf-8"));
+      }
     }
   }
 
