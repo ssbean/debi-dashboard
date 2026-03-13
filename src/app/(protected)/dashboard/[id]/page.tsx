@@ -18,6 +18,7 @@ export default async function DraftDetailPage({
       .from("drafts")
       .select("*, trigger:triggers(name, email_type, description, reply_in_thread)")
       .eq("id", id)
+      .is("deleted_at", null)
       .maybeSingle(),
     supabase.from("settings").select("ceo_timezone").eq("id", 1).maybeSingle(),
   ]);

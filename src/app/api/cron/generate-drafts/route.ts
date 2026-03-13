@@ -5,6 +5,7 @@ import { draftEmail } from "@/lib/claude";
 import { calculateSendTime } from "@/lib/scheduler";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { notifyGoogleChat } from "@/lib/google-chat";
 import type { Settings, Trigger, StyleExample } from "@/lib/types";
 
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
       .from("drafts")
       .select("*, trigger:triggers(*)")
       .eq("status", "needs_drafting")
+      .is("deleted_at", null)
       .limit(5);
 
     if (!drafts?.length) {
@@ -144,6 +146,16 @@ export async function GET(req: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", draft.id);
+
+        if (newStatus === "auto_approved") {
+          await logAuditEvent(supabase, {
+            action: "draft.auto_approve",
+            actorEmail: "system",
+            entityType: "draft",
+            entityId: draft.id,
+            metadata: { confidence: confidence, threshold: threshold },
+          });
+        }
 
         generated++;
       } catch (error) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function DELETE(
   _req: NextRequest,
@@ -19,13 +20,24 @@ export async function DELETE(
     .from("drafts")
     .select("id")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
 
-  await supabase.from("drafts").delete().eq("id", id);
+  await supabase
+    .from("drafts")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
+
+  await logAuditEvent(supabase, {
+    action: "draft.delete",
+    actorEmail: session.user.email,
+    entityType: "draft",
+    entityId: id,
+  });
 
   return NextResponse.json({ success: true });
 }

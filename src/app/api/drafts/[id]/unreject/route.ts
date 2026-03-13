@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
 import { calculateSendTimeAfterApproval } from "@/lib/scheduler";
+import { logAuditEvent } from "@/lib/audit-logger";
 import type { Settings } from "@/lib/types";
 
 export async function POST(
@@ -21,6 +22,7 @@ export async function POST(
     .from("drafts")
     .select("status")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
@@ -65,6 +67,13 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+
+  await logAuditEvent(supabase, {
+    action: "draft.unreject",
+    actorEmail: session.user.email,
+    entityType: "draft",
+    entityId: id,
+  });
 
   return NextResponse.json({ success: true });
 }

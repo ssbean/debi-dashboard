@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { calculateSendTimeAfterApproval } from "@/lib/scheduler";
+import { logAuditEvent } from "@/lib/audit-logger";
 import type { Settings } from "@/lib/types";
 
 export async function POST(
@@ -27,6 +28,7 @@ export async function POST(
     .from("drafts")
     .select("*")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
@@ -90,6 +92,14 @@ export async function POST(
       source: "edited",
     });
   }
+
+  await logAuditEvent(supabase, {
+    action: "draft.approve",
+    actorEmail: session.user.email,
+    entityType: "draft",
+    entityId: id,
+    metadata: { edited: !!wasEdited },
+  });
 
   return NextResponse.json({ success: true });
 }

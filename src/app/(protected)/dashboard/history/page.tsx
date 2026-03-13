@@ -18,6 +18,7 @@ export default async function HistoryPage() {
   const { data } = await supabase
     .from("drafts")
     .select("*, trigger:triggers(name, email_type)")
+    .is("deleted_at", null)
     .in("status", ["sent", "failed", "rejected"])
     .order("updated_at", { ascending: false })
     .limit(100);

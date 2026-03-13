@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function GET() {
   const session = await auth();
@@ -41,6 +42,12 @@ export async function PUT(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await logAuditEvent(supabase, {
+    action: "settings.update",
+    actorEmail: session.user?.email ?? "unknown",
+    entityType: "settings",
+  });
 
   return NextResponse.json({ success: true });
 }

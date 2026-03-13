@@ -15,6 +15,7 @@ const navItems = [
 const adminNavItems = [
   { href: "/admin/triggers", label: "Triggers" },
   { href: "/admin/cron-logs", label: "Logs" },
+  { href: "/admin/activity", label: "Activity" },
 ];
 
 export default async function ProtectedLayout({

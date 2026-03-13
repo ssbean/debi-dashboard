@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isAdmin } from "@/lib/admin";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { z } from "zod";
 
 const EditSchema = z.object({
@@ -29,6 +30,7 @@ export async function POST(
     .from("drafts")
     .select("status")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
@@ -46,6 +48,13 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+
+  await logAuditEvent(supabase, {
+    action: "draft.edit",
+    actorEmail: session.user.email,
+    entityType: "draft",
+    entityId: id,
+  });
 
   return NextResponse.json({ success: true });
 }
