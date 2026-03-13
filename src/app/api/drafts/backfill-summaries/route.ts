@@ -15,7 +15,7 @@ export async function POST(_req: NextRequest) {
 
   const { data: drafts } = await supabase
     .from("drafts")
-    .select("id, gmail_message_id, trigger_email_from, trigger_email_subject, trigger_email_body_snippet")
+    .select("id, gmail_message_id, trigger_email_from, trigger_email_subject, trigger_email_body_snippet, trigger_email_to, trigger_email_cc")
     .is("trigger_email_summary", null)
     .limit(50);
 
@@ -28,12 +28,17 @@ export async function POST(_req: NextRequest) {
 
   for (const draft of drafts) {
     try {
-      // Fetch full email body from Gmail
+      // Fetch full email from Gmail for body and CC context
       let fullBody = draft.trigger_email_body_snippet ?? "";
+      let to = draft.trigger_email_to ?? "";
+      let cc = draft.trigger_email_cc ?? "";
+
       if (draft.gmail_message_id) {
         const email = await fetchEmailById(draft.gmail_message_id);
-        if (email?.body) {
-          fullBody = email.body;
+        if (email) {
+          if (email.body) fullBody = email.body;
+          if (email.to) to = email.to;
+          if (email.cc) cc = email.cc;
         }
       }
 
@@ -46,6 +51,8 @@ export async function POST(_req: NextRequest) {
         draft.trigger_email_from,
         draft.trigger_email_subject,
         fullBody,
+        to || undefined,
+        cc || undefined,
       );
       if (summary) {
         await supabase

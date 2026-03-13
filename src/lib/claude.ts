@@ -32,6 +32,8 @@ export async function classifyEmail(
   emailSubject: string,
   emailBody: string,
   triggers: Trigger[],
+  emailTo?: string,
+  emailCc?: string,
 ): Promise<{ result: ClassificationOutput; usage: TokenUsage }> {
   const triggerDescriptions = triggers.map((t) => ({
     id: t.id,
@@ -54,7 +56,7 @@ Rules:
 - Confidence 0-100: 90+ = very clear match, 70-89 = likely match, below 70 = uncertain
 - Extract recipient email and name if mentioned in the email
 - If no match, set matched=false and trigger_id=null
-- Always include a "summary" field: a 1-2 sentence plain-language summary of the email for a non-technical reader. Focus on who/what is being recognized and key details (store names, metrics, achievements). Example: "Bryan congratulated the Chili's Brownsville team for hitting $42K in weekly sales, their best week this quarter."`,
+- Always include a "summary" field: a 1-2 sentence plain-language summary of the email for a non-technical reader. Focus on which stores are highlighted, their metrics/achievements, and which brand (the CC list often indicates the brand — e.g. Chili's, Denny's team members CC'd means it's that brand). Example: "Bryan highlighted 6 Denny's stores for record sales, led by Granada Hills-Balboa at $97K."`,
           cache_control: { type: "ephemeral" },
         },
         {
@@ -66,7 +68,7 @@ Rules:
       messages: [
         {
           role: "user",
-          content: `From: ${emailFrom}\nSubject: ${emailSubject}\n\n${emailBody}`,
+          content: `From: ${emailFrom}${emailTo ? `\nTo: ${emailTo}` : ""}${emailCc ? `\nCC: ${emailCc}` : ""}\nSubject: ${emailSubject}\n\n${emailBody}`,
         },
       ],
     });
@@ -107,6 +109,8 @@ export async function summarizeEmail(
   emailFrom: string,
   emailSubject: string,
   emailBody: string,
+  emailTo?: string,
+  emailCc?: string,
 ): Promise<string> {
   try {
     const response = await anthropic.messages.create({
@@ -115,9 +119,9 @@ export async function summarizeEmail(
       messages: [
         {
           role: "user",
-          content: `Summarize this email in 1-2 sentences for a non-technical reader. Focus on who/what is being recognized, key details like store names, metrics, and achievements.
+          content: `Summarize this email in 1-2 sentences for a non-technical reader. Focus on which stores are highlighted, their metrics/achievements, and which brand (the CC list often indicates the brand — e.g. Chili's or Denny's team members CC'd means it's that brand). Include specific store names and numbers when available.
 
-From: ${emailFrom}
+From: ${emailFrom}${emailTo ? `\nTo: ${emailTo}` : ""}${emailCc ? `\nCC: ${emailCc}` : ""}
 Subject: ${emailSubject}
 
 ${emailBody}`,

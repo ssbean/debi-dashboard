@@ -151,6 +151,8 @@ export async function GET(req: NextRequest) {
                 email.from,
                 email.subject,
                 email.body,
+                email.to,
+                email.cc,
               );
 
               await supabase.from("drafts").insert({
@@ -189,6 +191,8 @@ export async function GET(req: NextRequest) {
               email.subject,
               email.body,
               llmTriggers,
+              email.to,
+              email.cc,
             );
 
             totalInputTokens += usage.input_tokens;
