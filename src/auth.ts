@@ -1,5 +1,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { createServiceClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
   .split(",")
@@ -9,9 +11,23 @@ const allowedEmails = (process.env.ALLOWED_EMAILS ?? "")
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [Google],
   callbacks: {
-    signIn({ profile }) {
-      if (!profile?.email) return false;
-      return allowedEmails.includes(profile.email.toLowerCase());
+    async signIn({ profile }) {
+      const email = profile?.email;
+      if (!email) return false;
+
+      const allowed = allowedEmails.includes(email.toLowerCase());
+
+      try {
+        const supabase = createServiceClient();
+        await logAuditEvent(supabase, {
+          action: allowed ? "auth.login" : "auth.login_denied",
+          actorEmail: email,
+        });
+      } catch {
+        // Never block sign-in due to audit logging failure
+      }
+
+      return allowed;
     },
     jwt({ token, profile }) {
       if (profile?.email) {

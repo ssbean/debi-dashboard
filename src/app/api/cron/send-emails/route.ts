@@ -5,6 +5,7 @@ import { getSignature } from "@/lib/gmail";
 import { sendDraft } from "@/lib/send-draft";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export const maxDuration = 60;
 
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
       .not("scheduled_send_at", "is", null)
       .lte("scheduled_send_at", new Date().toISOString())
       .is("sent_at", null)
+      .is("deleted_at", null)
       .limit(10);
 
     if (!drafts?.length) {
@@ -77,6 +79,13 @@ export async function GET(req: NextRequest) {
           })
           .eq("id", draft.id);
 
+        await logAuditEvent(supabase, {
+          action: "draft.send_success",
+          actorEmail: "system",
+          entityType: "draft",
+          entityId: draft.id,
+        });
+
         sent++;
       } catch (error) {
         const attempts = (draft.send_attempts ?? 0) + 1;
@@ -91,6 +100,14 @@ export async function GET(req: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .eq("id", draft.id);
+
+        await logAuditEvent(supabase, {
+          action: "draft.send_failure",
+          actorEmail: "system",
+          entityType: "draft",
+          entityId: draft.id,
+          metadata: { error: String(error), attempt: attempts },
+        });
 
         failed++;
         logger.error(`Failed to send draft ${draft.id}`, "send-emails", {

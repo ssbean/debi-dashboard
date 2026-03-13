@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { z } from "zod";
 
 const TriggerSchema = z.object({
@@ -61,6 +62,14 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await logAuditEvent(supabase, {
+    action: "trigger.create",
+    actorEmail: session.user.email,
+    entityType: "trigger",
+    entityId: data.id,
+    metadata: { name: data.name },
+  });
 
   return NextResponse.json(data);
 }

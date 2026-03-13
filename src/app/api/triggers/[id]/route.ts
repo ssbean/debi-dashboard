@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit-logger";
 import { z } from "zod";
 
 const TriggerUpdateSchema = z.object({
@@ -50,6 +51,14 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  await logAuditEvent(supabase, {
+    action: "trigger.update",
+    actorEmail: session.user.email,
+    entityType: "trigger",
+    entityId: id,
+    metadata: { name: parsed.data.name },
+  });
+
   return NextResponse.json({ success: true });
 }
 
@@ -74,6 +83,13 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
+
+  await logAuditEvent(supabase, {
+    action: "trigger.delete",
+    actorEmail: session.user?.email ?? "unknown",
+    entityType: "trigger",
+    entityId: id,
+  });
 
   return NextResponse.json({ success: true });
 }

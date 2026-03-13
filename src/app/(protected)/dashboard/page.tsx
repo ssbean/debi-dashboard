@@ -31,6 +31,7 @@ export default async function DashboardPage() {
   const { data: drafts } = await supabase
     .from("drafts")
     .select("*, trigger:triggers(name, email_type)")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(50);
 

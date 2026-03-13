@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { getSignature } from "@/lib/gmail";
 import { sendDraft } from "@/lib/send-draft";
 import { logger } from "@/lib/logger";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function POST(
   req: NextRequest,
@@ -22,6 +23,7 @@ export async function POST(
     .from("drafts")
     .select("*, trigger:triggers(reply_in_thread)")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
@@ -64,6 +66,14 @@ export async function POST(
       })
       .eq("id", draft.id);
 
+    await logAuditEvent(serviceClient, {
+      action: "draft.send_now",
+      actorEmail: session.user.email!,
+      entityType: "draft",
+      entityId: id,
+      metadata: { success: true },
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     const attempts = (draft.send_attempts ?? 0) + 1;
@@ -80,6 +90,14 @@ export async function POST(
     logger.error(`Failed to send draft ${draft.id}`, "send-now", {
       error: String(error),
       attempt: attempts,
+    });
+
+    await logAuditEvent(serviceClient, {
+      action: "draft.send_now",
+      actorEmail: session.user.email!,
+      entityType: "draft",
+      entityId: id,
+      metadata: { success: false, error: String(error), attempt: attempts },
     });
 
     return NextResponse.json({ error: "Failed to send email" }, { status: 500 });

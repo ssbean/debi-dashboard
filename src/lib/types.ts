@@ -62,7 +62,18 @@ export interface Draft {
   approved_by_email: string | null;
   created_at: string;
   updated_at: string | null;
+  deleted_at: string | null;
   trigger?: Trigger;
+}
+
+export interface AuditEvent {
+  id: string;
+  action: string;
+  actor_email: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface Settings {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createServiceClient } from "@/lib/supabase/server";
+import { logAuditEvent } from "@/lib/audit-logger";
 
 export async function POST(
   _req: NextRequest,
@@ -18,6 +19,7 @@ export async function POST(
     .from("drafts")
     .select("status")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (!draft) {
@@ -36,6 +38,13 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+
+  await logAuditEvent(supabase, {
+    action: "draft.reject",
+    actorEmail: session.user.email!,
+    entityType: "draft",
+    entityId: id,
+  });
 
   return NextResponse.json({ success: true });
 }
