@@ -58,6 +58,7 @@ export interface Draft {
   send_error: string | null;
   sent_to: string | null;
   sent_cc: string | null;
+  sent_bcc: string | null;
   approved_by_email: string | null;
   created_at: string;
   updated_at: string | null;

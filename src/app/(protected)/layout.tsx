@@ -4,6 +4,8 @@ import Link from "next/link";
 import { createServiceClient } from "@/lib/supabase/server";
 import { isAdmin as checkAdmin } from "@/lib/admin";
 
+export const dynamic = "force-dynamic";
+
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/dashboard/history", label: "History" },

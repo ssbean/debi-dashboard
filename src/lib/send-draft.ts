@@ -8,11 +8,6 @@ type SendableDraft = Omit<Draft, "trigger"> & {
   trigger: Pick<Trigger, "reply_in_thread"> | null;
 };
 
-interface ResolvedRecipients {
-  to: readonly string[];
-  cc: readonly string[];
-}
-
 function parseAddresses(header: string | null): string[] {
   if (!header) return [];
   const parsed = parseAddressList(header);
@@ -22,13 +17,14 @@ function parseAddresses(header: string | null): string[] {
     .map((a) => (a as { address: string }).address);
 }
 
-function resolveReplyAllRecipients(
+/** Collect all recipients from a thread message, excluding the CEO, deduplicated. */
+function resolveRecipients(
   latestFrom: string,
   latestTo: string,
   latestCc: string | null,
   latestReplyTo: string | null,
   ceoEmail: string,
-): ResolvedRecipients {
+): string[] {
   const fromAddrs = parseAddresses(latestFrom);
   const toAddrs = parseAddresses(latestTo);
   const ccAddrs = parseAddresses(latestCc);
@@ -37,32 +33,27 @@ function resolveReplyAllRecipients(
   const self = ceoEmail.toLowerCase();
   const isSelf = (addr: string) => addr.toLowerCase() === self;
 
-  // To = Reply-To (or From) + original To, minus self, deduplicated
-  const rawTo = [
+  const all = [
     ...(replyToAddrs.length ? replyToAddrs : fromAddrs),
     ...toAddrs,
+    ...ccAddrs,
   ].filter((addr) => !isSelf(addr));
 
-  const seenTo = new Set<string>();
-  const newTo = rawTo.filter((addr) => {
+  // Deduplicate (case-insensitive)
+  const seen = new Set<string>();
+  return all.filter((addr) => {
     const lower = addr.toLowerCase();
-    if (seenTo.has(lower)) return false;
-    seenTo.add(lower);
+    if (seen.has(lower)) return false;
+    seen.add(lower);
     return true;
   });
-
-  // Cc = original Cc, minus self, minus anyone already in To
-  const newCc = ccAddrs.filter(
-    (addr) => !isSelf(addr) && !seenTo.has(addr.toLowerCase()),
-  );
-
-  return { to: newTo, cc: newCc };
 }
 
 /**
  * Resolves recipients and sends a draft email.
- * For reply-in-thread triggers, fetches the latest thread message and does reply-all.
- * Persists sent_to/sent_cc to the draft row for audit purposes.
+ * All recipients are placed in BCC; the To: header is set to the CEO's own email.
+ * For reply-in-thread triggers, fetches the latest thread message to collect recipients.
+ * Persists sent_to/sent_bcc to the draft row for audit purposes.
  * Throws on failure — callers implement their own retry/error policy.
  */
 export async function sendDraft(
@@ -79,18 +70,17 @@ export async function sendDraft(
   const threadId =
     draft.trigger?.reply_in_thread ? draft.gmail_thread_id : null;
 
-  let to: string;
-  let cc: string | null = null;
+  let bccRecipients: string[];
   let inReplyTo: string | null = null;
 
   if (threadId) {
-    // Reply-all: fetch latest thread message and resolve recipients
+    // Reply-in-thread: fetch latest thread message and resolve all recipients
     const latestMessage = await getLatestThreadMessage(threadId);
 
     if (latestMessage) {
       inReplyTo = latestMessage.messageId;
 
-      const resolved = resolveReplyAllRecipients(
+      bccRecipients = resolveRecipients(
         latestMessage.from,
         latestMessage.to,
         latestMessage.cc,
@@ -98,21 +88,17 @@ export async function sendDraft(
         ceoEmail,
       );
 
-      if (resolved.to.length > 0) {
-        to = resolved.to.join(", ");
-        cc = resolved.cc.length > 0 ? resolved.cc.join(", ") : null;
-        logger.info(
-          `Reply-all resolved: To=[${to}] CC=[${cc ?? "none"}]`,
-          "send-draft",
-        );
-      } else {
-        // All recipients stripped (unlikely) — fall back
+      if (bccRecipients.length === 0) {
         logger.warn(
-          "Reply-all resolved to zero recipients, falling back to trigger_email_from",
+          "Resolved to zero recipients, falling back to trigger_email_from",
           "send-draft",
         );
-        to = draft.trigger_email_from;
-        cc = draft.trigger_email_cc;
+        bccRecipients = parseAddresses(draft.trigger_email_from);
+      } else {
+        logger.info(
+          `BCC recipients resolved: [${bccRecipients.join(", ")}]`,
+          "send-draft",
+        );
       }
     } else {
       // Thread not found — fall back to stored recipients
@@ -120,26 +106,32 @@ export async function sendDraft(
         `Thread ${threadId} not found, falling back to stored recipients`,
         "send-draft",
       );
-      to = draft.trigger_email_from;
-      cc = draft.trigger_email_cc;
+      bccRecipients = [
+        ...parseAddresses(draft.trigger_email_from),
+        ...parseAddresses(draft.trigger_email_cc),
+      ];
     }
   } else {
-    // Standalone send: use trigger_email_from (not recipient_email, which may be LLM-extracted)
-    to = draft.trigger_email_from;
-    cc = draft.trigger_email_cc;
+    // Standalone send: BCC the original sender (+ CC if any)
+    bccRecipients = [
+      ...parseAddresses(draft.trigger_email_from),
+      ...parseAddresses(draft.trigger_email_cc),
+    ];
   }
 
   if (!draft.subject || !draft.body) {
     throw new Error(`Draft ${draft.id} missing required fields (subject, body)`);
   }
 
+  const bcc = bccRecipients.join(", ") || null;
+
   await sendEmail({
-    to,
+    to: ceoEmail,
     subject: draft.subject,
     body: draft.body,
     threadId,
     inReplyTo,
-    cc,
+    bcc,
     redirectTo: options.redirectTo,
     signature: options.signature,
   });
@@ -148,14 +140,15 @@ export async function sendDraft(
   const { error: auditError } = await supabase
     .from("drafts")
     .update({
-      sent_to: to,
-      sent_cc: cc,
+      sent_to: ceoEmail,
+      sent_cc: null,
+      sent_bcc: bcc,
     })
     .eq("id", draft.id);
 
   if (auditError) {
     logger.warn(
-      `Failed to persist sent_to/sent_cc for draft ${draft.id}: ${auditError.message}`,
+      `Failed to persist sent recipients for draft ${draft.id}: ${auditError.message}`,
       "send-draft",
     );
   }

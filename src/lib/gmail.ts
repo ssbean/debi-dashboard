@@ -308,12 +308,13 @@ export interface SendEmailOptions {
   threadId?: string | null;
   inReplyTo?: string | null;
   cc?: string | null;
+  bcc?: string | null;
   redirectTo?: string | null;
   signature?: string | null;
 }
 
 export async function sendEmail(options: SendEmailOptions) {
-  const { to, subject, body, threadId, inReplyTo, cc, redirectTo } = options;
+  const { to, subject, body, threadId, inReplyTo, cc, bcc, redirectTo } = options;
   const ceoEmail = getCeoEmail();
   const ceoName = process.env.CEO_NAME ?? "Roland Spongberg";
   const gmail = getGmailClient(ceoEmail);
@@ -328,12 +329,14 @@ export async function sendEmail(options: SendEmailOptions) {
   // Redirect: replace recipients and note originals in body
   let actualTo = to;
   let actualCc = cc;
+  let actualBcc = bcc;
   let redirectNote = "";
   if (redirectTo) {
-    logger.info(`Redirecting email from [To: ${to}] [CC: ${cc ?? "none"}] → ${redirectTo}`, "gmail");
+    logger.info(`Redirecting email from [To: ${to}] [CC: ${cc ?? "none"}] [BCC: ${bcc ?? "none"}] → ${redirectTo}`, "gmail");
     actualTo = redirectTo;
-    actualCc = cc ? redirectTo : null;
-    redirectNote = `<div style="background:#fef3c7;padding:8px 12px;margin-bottom:16px;border-radius:4px;font-size:13px;"><strong>REDIRECTED</strong><br>Original To: ${escapeHtml(to)}<br>Original CC: ${escapeHtml(cc ?? "none")}</div>`;
+    actualCc = null;
+    actualBcc = null;
+    redirectNote = `<div style="background:#fef3c7;padding:8px 12px;margin-bottom:16px;border-radius:4px;font-size:13px;"><strong>REDIRECTED</strong><br>Original To: ${escapeHtml(to)}<br>Original CC: ${escapeHtml(cc ?? "none")}<br>Original BCC: ${escapeHtml(bcc ?? "none")}</div>`;
   }
 
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
@@ -342,6 +345,7 @@ export async function sendEmail(options: SendEmailOptions) {
     `From: ${sanitizeHeaderValue(ceoName)} <${sanitizeHeaderValue(ceoEmail)}>`,
     `To: ${sanitizeHeaderValue(actualTo)}`,
     ...(actualCc ? [`Cc: ${sanitizeHeaderValue(actualCc)}`] : []),
+    ...(actualBcc ? [`Bcc: ${sanitizeHeaderValue(actualBcc)}`] : []),
     `Subject: =?UTF-8?B?${Buffer.from(replySubject).toString("base64")}?=`,
     `Content-Type: text/html; charset=utf-8`,
   ];
