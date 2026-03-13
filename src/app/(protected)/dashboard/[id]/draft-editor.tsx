@@ -235,13 +235,15 @@ export function DraftEditor({ draft, timezone, isAdmin = false }: { draft: Draft
         </div>
       </div>
 
-      {/* AI Summary — the hero section */}
-      {draft.trigger_email_summary && (
+      {/* AI Summary — the hero section, falls back to body snippet */}
+      {(draft.trigger_email_summary || draft.trigger_email_body_snippet) && (
         <Card className="border-l-4 border-l-blue-400 bg-blue-50/30">
           <CardContent className="py-4">
             <div className="flex items-start gap-2.5">
               <Sparkles className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
-              <p className="text-sm leading-relaxed">{draft.trigger_email_summary}</p>
+              <p className="text-sm leading-relaxed">
+                {draft.trigger_email_summary ?? draft.trigger_email_body_snippet}
+              </p>
             </div>
           </CardContent>
         </Card>

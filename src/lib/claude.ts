@@ -120,7 +120,7 @@ export async function summarizeEmail(
 From: ${emailFrom}
 Subject: ${emailSubject}
 
-${emailBody.slice(0, 500)}`,
+${emailBody}`,
         },
       ],
     });

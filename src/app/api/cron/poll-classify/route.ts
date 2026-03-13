@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
 import { fetchNewEmails, fetchFilteredEmailIds, fetchEmailById } from "@/lib/gmail";
-import { classifyEmail } from "@/lib/claude";
+import { classifyEmail, summarizeEmail } from "@/lib/claude";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
 import type { Trigger } from "@/lib/types";
@@ -146,6 +146,13 @@ export async function GET(req: NextRequest) {
               totalConfidence += 100;
               confidenceCount++;
 
+              // Generate summary from full email body
+              const summary = await summarizeEmail(
+                email.from,
+                email.subject,
+                email.body,
+              );
+
               await supabase.from("drafts").insert({
                 trigger_id: filterTrigger.id,
                 gmail_message_id: email.messageId,
@@ -158,6 +165,7 @@ export async function GET(req: NextRequest) {
                 recipient_email: email.from,
                 recipient_name: null,
                 confidence_score: 100,
+                trigger_email_summary: summary || null,
                 status: "needs_drafting",
               });
 
