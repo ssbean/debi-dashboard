@@ -1,5 +1,5 @@
 import { parseAddressList } from "email-addresses";
-import { getLatestThreadMessage, sendEmail } from "./gmail";
+import { getThreadParticipants, sendEmail } from "./gmail";
 import { logger } from "./logger";
 import type { Draft, Trigger } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -17,42 +17,11 @@ function parseAddresses(header: string | null): string[] {
     .map((a) => (a as { address: string }).address);
 }
 
-/** Collect all recipients from a thread message, excluding the CEO, deduplicated. */
-function resolveRecipients(
-  latestFrom: string,
-  latestTo: string,
-  latestCc: string | null,
-  latestReplyTo: string | null,
-  ceoEmail: string,
-): string[] {
-  const fromAddrs = parseAddresses(latestFrom);
-  const toAddrs = parseAddresses(latestTo);
-  const ccAddrs = parseAddresses(latestCc);
-  const replyToAddrs = parseAddresses(latestReplyTo);
-
-  const self = ceoEmail.toLowerCase();
-  const isSelf = (addr: string) => addr.toLowerCase() === self;
-
-  const all = [
-    ...(replyToAddrs.length ? replyToAddrs : fromAddrs),
-    ...toAddrs,
-    ...ccAddrs,
-  ].filter((addr) => !isSelf(addr));
-
-  // Deduplicate (case-insensitive)
-  const seen = new Set<string>();
-  return all.filter((addr) => {
-    const lower = addr.toLowerCase();
-    if (seen.has(lower)) return false;
-    seen.add(lower);
-    return true;
-  });
-}
-
 /**
  * Resolves recipients and sends a draft email.
  * All recipients are placed in BCC; the To: header is set to the CEO's own email.
- * For reply-in-thread triggers, fetches the latest thread message to collect recipients.
+ * For reply-in-thread triggers, collects participants from ALL thread messages
+ * so that early repliers who dropped off the CC chain are still included.
  * Persists sent_to/sent_bcc to the draft row for audit purposes.
  * Throws on failure — callers implement their own retry/error policy.
  */
@@ -74,50 +43,47 @@ export async function sendDraft(
   let inReplyTo: string | null = null;
 
   if (threadId) {
-    // Reply-in-thread: fetch latest thread message and resolve all recipients
-    const latestMessage = await getLatestThreadMessage(threadId);
+    // Reply-in-thread: collect all participants across the entire thread
+    const thread = await getThreadParticipants(threadId, ceoEmail);
 
-    if (latestMessage) {
-      inReplyTo = latestMessage.messageId;
+    if (thread && thread.allParticipants.length > 0) {
+      inReplyTo = thread.latestMessageId;
+      bccRecipients = thread.allParticipants;
 
-      bccRecipients = resolveRecipients(
-        latestMessage.from,
-        latestMessage.to,
-        latestMessage.cc,
-        latestMessage.replyTo,
-        ceoEmail,
+      logger.info(
+        `BCC recipients resolved from thread: [${bccRecipients.join(", ")}]`,
+        "send-draft",
       );
-
-      if (bccRecipients.length === 0) {
-        logger.warn(
-          "Resolved to zero recipients, falling back to trigger_email_from",
-          "send-draft",
-        );
-        bccRecipients = parseAddresses(draft.trigger_email_from);
-      } else {
-        logger.info(
-          `BCC recipients resolved: [${bccRecipients.join(", ")}]`,
-          "send-draft",
-        );
-      }
     } else {
-      // Thread not found — fall back to stored recipients
+      // Thread not found or empty — fall back to stored recipients
       logger.warn(
-        `Thread ${threadId} not found, falling back to stored recipients`,
+        `Thread ${threadId} returned no participants, falling back to stored recipients`,
         "send-draft",
       );
       bccRecipients = [
         ...parseAddresses(draft.trigger_email_from),
+        ...parseAddresses(draft.trigger_email_to),
         ...parseAddresses(draft.trigger_email_cc),
       ];
     }
   } else {
-    // Standalone send: BCC the original sender (+ CC if any)
+    // Standalone send: BCC all original recipients
     bccRecipients = [
       ...parseAddresses(draft.trigger_email_from),
+      ...parseAddresses(draft.trigger_email_to),
       ...parseAddresses(draft.trigger_email_cc),
     ];
   }
+
+  // Deduplicate and exclude the CEO (already in To:)
+  const self = ceoEmail.toLowerCase();
+  const seen = new Set<string>();
+  bccRecipients = bccRecipients.filter((addr) => {
+    const lower = addr.toLowerCase();
+    if (lower === self || seen.has(lower)) return false;
+    seen.add(lower);
+    return true;
+  });
 
   if (!draft.subject || !draft.body) {
     throw new Error(`Draft ${draft.id} missing required fields (subject, body)`);
