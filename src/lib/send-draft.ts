@@ -1,5 +1,5 @@
 import { parseAddressList } from "email-addresses";
-import { getThreadParticipants, sendEmail } from "./gmail";
+import { getLatestThreadMessage, muteThread, sendEmail } from "./gmail";
 import { logger } from "./logger";
 import type { Draft, Trigger } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,10 +19,10 @@ function parseAddresses(header: string | null): string[] {
 
 /**
  * Resolves recipients and sends a draft email.
- * All recipients are placed in BCC; the To: header is set to the CEO's own email.
- * For reply-in-thread triggers, collects participants from ALL thread messages
- * so that early repliers who dropped off the CC chain are still included.
- * Persists sent_to/sent_bcc to the draft row for audit purposes.
+ * For reply-in-thread triggers, sends reply-all using the latest thread message's
+ * To/CC headers, then mutes the thread to prevent inbox flooding.
+ * For standalone sends, sends to the original sender only.
+ * Persists sent_to/sent_cc to the draft row for audit purposes.
  * Throws on failure — callers implement their own retry/error policy.
  */
 export async function sendDraft(
@@ -39,76 +39,81 @@ export async function sendDraft(
   const threadId =
     draft.trigger?.reply_in_thread ? draft.gmail_thread_id : null;
 
-  let bccRecipients: string[];
+  let recipientTo: string;
+  let recipientCc: string | null = null;
   let inReplyTo: string | null = null;
 
   if (threadId) {
-    // Reply-in-thread: collect all participants across the entire thread
-    const thread = await getThreadParticipants(threadId, ceoEmail);
+    // Reply-in-thread: standard reply-all using latest message headers
+    const latest = await getLatestThreadMessage(threadId);
 
-    if (thread && thread.allParticipants.length > 0) {
-      inReplyTo = thread.latestMessageId;
-      bccRecipients = thread.allParticipants;
+    if (latest) {
+      // Standard reply-all: From → To, keep CC, exclude CEO
+      const replyTo = latest.replyTo || latest.from;
+      const toAddresses = replyTo ? [replyTo] : [];
+      const ccAddresses = [
+        ...parseAddresses(latest.to),
+        ...parseAddresses(latest.cc),
+      ].filter((addr) => addr.toLowerCase() !== ceoEmail.toLowerCase());
+
+      recipientTo = toAddresses.join(", ");
+      recipientCc = ccAddresses.join(", ") || null;
+      inReplyTo = latest.messageId;
 
       logger.info(
-        `BCC recipients resolved from thread: [${bccRecipients.join(", ")}]`,
+        `Reply-all recipients resolved from thread: To=[${recipientTo}] CC=[${recipientCc ?? "none"}]`,
         "send-draft",
       );
     } else {
       // Thread not found or empty — fall back to stored recipients
       logger.warn(
-        `Thread ${threadId} returned no participants, falling back to stored recipients`,
+        `Thread ${threadId} not found, falling back to stored recipients`,
         "send-draft",
       );
-      bccRecipients = [
-        ...parseAddresses(draft.trigger_email_from),
-        ...parseAddresses(draft.trigger_email_to),
-        ...parseAddresses(draft.trigger_email_cc),
-      ];
+      recipientTo = draft.trigger_email_from;
+      recipientCc =
+        [draft.trigger_email_to, draft.trigger_email_cc]
+          .filter(Boolean)
+          .join(", ") || null;
     }
   } else {
-    // Standalone send: BCC all original recipients
-    bccRecipients = [
-      ...parseAddresses(draft.trigger_email_from),
-      ...parseAddresses(draft.trigger_email_to),
-      ...parseAddresses(draft.trigger_email_cc),
-    ];
+    // Standalone send: to original sender only
+    recipientTo = draft.recipient_email ?? draft.trigger_email_from;
   }
-
-  // Deduplicate and exclude the CEO (already in To:)
-  const self = ceoEmail.toLowerCase();
-  const seen = new Set<string>();
-  bccRecipients = bccRecipients.filter((addr) => {
-    const lower = addr.toLowerCase();
-    if (lower === self || seen.has(lower)) return false;
-    seen.add(lower);
-    return true;
-  });
 
   if (!draft.subject || !draft.body) {
     throw new Error(`Draft ${draft.id} missing required fields (subject, body)`);
   }
 
-  const bcc = bccRecipients.join(", ") || null;
-
   await sendEmail({
-    to: ceoEmail,
+    to: recipientTo,
     subject: draft.subject,
     body: draft.body,
     threadId,
     inReplyTo,
-    bcc,
+    cc: recipientCc,
     redirectTo: options.redirectTo,
     signature: options.signature,
   });
+
+  // Mute the thread to prevent inbox flooding from replies
+  // Fire-and-forget: don't block the send pipeline on a best-effort operation
+  if (threadId && !options.redirectTo) {
+    muteThread(threadId).catch((error) => {
+      logger.warn(
+        `Failed to mute thread ${threadId}: ${String(error)}`,
+        "send-draft",
+      );
+    });
+  }
 
   // Persist actual recipients for audit trail
   const { error: auditError } = await supabase
     .from("drafts")
     .update({
-      sent_to: ceoEmail,
-      sent_cc: null,
-      sent_bcc: bcc,
+      sent_to: recipientTo,
+      sent_cc: recipientCc,
+      sent_bcc: null,
     })
     .eq("id", draft.id);
 

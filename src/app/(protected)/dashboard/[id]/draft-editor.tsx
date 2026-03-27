@@ -293,15 +293,14 @@ export function DraftEditor({ draft, timezone, isAdmin = false }: { draft: Draft
         </h2>
 
         {/* Recipients */}
-        {draft.sent_bcc ? (
+        {draft.sent_to ? (
           <div className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">BCC:</span> {draft.sent_bcc}</p>
-          </div>
-        ) : draft.sent_to ? (
-          <div className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Sent to:</span> {draft.sent_to}</p>
+            <p><span className="text-muted-foreground">To:</span> {draft.sent_to}</p>
             {draft.sent_cc && (
               <p><span className="text-muted-foreground">CC:</span> {draft.sent_cc}</p>
+            )}
+            {draft.sent_bcc && (
+              <p><span className="text-muted-foreground">BCC:</span> {draft.sent_bcc}</p>
             )}
           </div>
         ) : isReplyAll ? (
@@ -311,19 +310,18 @@ export function DraftEditor({ draft, timezone, isAdmin = false }: { draft: Draft
               onClick={() => setShowRecipients(!showRecipients)}
               className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              BCC to thread recipients
+              Reply-all to thread
               {showRecipients ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             </button>
             {showRecipients && (
               <div className="mt-2 pl-1 space-y-1 text-sm text-muted-foreground">
                 {draft.trigger_email_to && <p><span className="font-medium">To:</span> {draft.trigger_email_to}</p>}
                 {draft.trigger_email_cc && <p><span className="font-medium">CC:</span> {draft.trigger_email_cc}</p>}
-                <p className="text-xs italic pt-1">All recipients will be BCC&apos;d — they won&apos;t see other recipients</p>
               </div>
             )}
           </div>
         ) : recipientEmail ? (
-          <p className="text-sm"><span className="text-muted-foreground">BCC:</span> {recipientEmail}</p>
+          <p className="text-sm"><span className="text-muted-foreground">To:</span> {recipientEmail}</p>
         ) : null}
 
         {/* Subject */}
