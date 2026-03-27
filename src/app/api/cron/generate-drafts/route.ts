@@ -81,8 +81,7 @@ export async function GET(req: NextRequest) {
           .from("style_examples")
           .select("*")
           .eq("trigger_id", draft.trigger_id)
-          .order("created_at", { ascending: false })
-          .limit(5);
+          .order("created_at", { ascending: false });
 
         const { result, usage } = await draftEmail(
           trigger,

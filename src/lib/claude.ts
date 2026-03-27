@@ -170,7 +170,7 @@ The subject line is handled automatically — only generate the email body.`,
         },
         {
           type: "text",
-          text: `Style examples for this trigger:\n\n${examples || "No examples yet. Write a warm, professional email."}`,
+          text: `Style examples for this trigger (use ALL of them as inspiration — vary your tone, phrasing, and structure across drafts so replies don't sound repetitive):\n\n${examples || "No examples yet. Write a warm, professional email."}`,
           cache_control: { type: "ephemeral" },
         },
       ],
