@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/cron-auth";
 import { createServiceClient } from "@/lib/supabase/server";
-import { fetchNewEmails, fetchFilteredEmailIds, fetchEmailById } from "@/lib/gmail";
+import { fetchNewEmails, fetchFilteredEmailIds, fetchEmailById, archiveThread } from "@/lib/gmail";
 import { classifyEmail, summarizeEmail } from "@/lib/claude";
 import { logger } from "@/lib/logger";
 import { logCronRun } from "@/lib/cron-logger";
@@ -57,9 +57,18 @@ export async function GET(req: NextRequest) {
     const filterTriggers = (triggers as Trigger[]).filter(t => t.match_mode === "gmail_filter" && t.gmail_filter_query);
     const llmTriggers = (triggers as Trigger[]).filter(t => t.match_mode === "llm");
 
+    // Load muted thread IDs for reply suppression
+    const { data: mutedRows } = await supabase
+      .from("muted_threads")
+      .select("gmail_thread_id");
+    const mutedThreadIds = new Set(
+      (mutedRows ?? []).map((r: { gmail_thread_id: string }) => r.gmail_thread_id),
+    );
+
     let processed = 0;
     let matched = 0;
     let errors = 0;
+    let mutedSuppressed = 0;
     let duplicatesSkipped = 0;
     let totalConfidence = 0;
     let confidenceCount = 0;
@@ -129,6 +138,23 @@ export async function GET(req: NextRequest) {
 
             if (existing) {
               duplicatesSkipped++;
+              return;
+            }
+
+            // Suppress replies in muted threads (auto-sent reply-all threads)
+            if (email.threadId && mutedThreadIds.has(email.threadId)) {
+              await supabase.from("processed_emails").insert({
+                gmail_message_id: email.messageId,
+                matched: false,
+              });
+              // Archive + mark read so it doesn't reappear
+              archiveThread(email.threadId).catch((err) => {
+                logger.warn(`Failed to archive muted thread ${email.threadId}`, "poll-classify", {
+                  error: String(err),
+                });
+              });
+              mutedSuppressed++;
+              processed++;
               return;
             }
 
@@ -249,6 +275,7 @@ export async function GET(req: NextRequest) {
     const stats = {
       emails_scanned: emails.length,
       duplicates_skipped: duplicatesSkipped,
+      muted_suppressed: mutedSuppressed,
       emails_processed: processed,
       emails_matched: matched,
       match_rate: matchRate,

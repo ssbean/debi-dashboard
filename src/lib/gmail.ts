@@ -272,44 +272,26 @@ export async function getLatestThreadMessage(
 }
 
 /**
- * Mute a Gmail thread — future replies skip the inbox and go to All Mail.
- * Throws on failure — caller should catch if mute is non-critical.
+ * Archive a Gmail thread — removes from inbox and marks as read.
+ * Used after sending a reply-all to immediately clear the thread,
+ * and by poll-classify to suppress replies in muted threads.
+ * Throws on failure — caller should catch if non-critical.
  */
-export async function muteThread(threadId: string): Promise<void> {
+export async function archiveThread(threadId: string): Promise<void> {
   if (!/^[a-f0-9]+$/i.test(threadId)) {
     throw new GmailError(`Invalid threadId format: ${threadId}`);
   }
 
   const gmail = getGmailClient(getCeoEmail());
-  try {
-    await withRetry(() =>
-      gmail.users.threads.modify({
-        userId: "me",
-        id: threadId,
-        requestBody: {
-          addLabelIds: ["MUTED"],
-          removeLabelIds: ["INBOX"],
-        },
-      }),
-    );
-  } catch (error: unknown) {
-    // Fallback: if MUTED label fails (undocumented label), just remove INBOX
-    const isLabelError =
-      error instanceof Error && error.message?.includes("Invalid label");
-    if (isLabelError) {
-      await withRetry(() =>
-        gmail.users.threads.modify({
-          userId: "me",
-          id: threadId,
-          requestBody: {
-            removeLabelIds: ["INBOX"],
-          },
-        }),
-      );
-      return;
-    }
-    throw error;
-  }
+  await withRetry(() =>
+    gmail.users.threads.modify({
+      userId: "me",
+      id: threadId,
+      requestBody: {
+        removeLabelIds: ["INBOX", "UNREAD"],
+      },
+    }),
+  );
 }
 
 export async function getSignature(): Promise<string | null> {

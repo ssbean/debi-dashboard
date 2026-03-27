@@ -1,5 +1,5 @@
 import { parseAddressList } from "email-addresses";
-import { getLatestThreadMessage, muteThread, sendEmail } from "./gmail";
+import { archiveThread, getLatestThreadMessage, sendEmail } from "./gmail";
 import { logger } from "./logger";
 import type { Draft, Trigger } from "./types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -96,15 +96,30 @@ export async function sendDraft(
     signature: options.signature,
   });
 
-  // Mute the thread to prevent inbox flooding from replies
-  // Fire-and-forget: don't block the send pipeline on a best-effort operation
+  // Mute the thread: archive immediately + record for future reply suppression
+  // Fire-and-forget: don't block the send pipeline on best-effort operations
   if (threadId && !options.redirectTo) {
-    muteThread(threadId).catch((error) => {
+    archiveThread(threadId).catch((error) => {
       logger.warn(
-        `Failed to mute thread ${threadId}: ${String(error)}`,
+        `Failed to archive thread ${threadId}: ${String(error)}`,
         "send-draft",
       );
     });
+
+    supabase
+      .from("muted_threads")
+      .upsert(
+        { gmail_thread_id: threadId, draft_id: draft.id },
+        { onConflict: "gmail_thread_id" },
+      )
+      .then(({ error }) => {
+        if (error) {
+          logger.warn(
+            `Failed to record muted thread ${threadId}: ${error.message}`,
+            "send-draft",
+          );
+        }
+      });
   }
 
   // Persist actual recipients for audit trail
