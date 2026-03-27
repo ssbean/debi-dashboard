@@ -21,8 +21,8 @@ deepened: 2026-03-27
 5. **MUTED label fallback**: If `MUTED` label fails with 400 (undocumented label), fall back to just removing `INBOX`
 6. **Security**: Add threadId format validation as defense-in-depth
 
-### Critical Discovery: MUTED Label is Undocumented
-The `MUTED` system label works reliably via API and has been stable for years, but it is **not in Google's official label documentation**. Google could theoretically change the label ID. The plan includes a fallback that degrades gracefully to just removing `INBOX` if `MUTED` fails.
+### Critical Discovery: MUTED Label Not Available via API
+The Gmail `MUTED` system label **cannot be applied via the Gmail API** — it returns 400 "Invalid label". It is an internal Gmail implementation detail not exposed to API consumers. The plan was revised to use a **poll-and-archive** strategy instead: after sending, archive the thread immediately and record it in a `muted_threads` table. The poll-classify cron auto-archives any new replies in muted threads during each hourly cycle.
 
 ---
 
