@@ -1,4 +1,3 @@
-import { parseAddressList } from "email-addresses";
 import { google } from "googleapis";
 import { GmailError } from "./errors";
 import { logger } from "./logger";
@@ -15,6 +14,7 @@ function getGmailClient(userEmail: string) {
     key: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n"),
     scopes: [
       "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/gmail.modify",
       "https://www.googleapis.com/auth/gmail.send",
       "https://www.googleapis.com/auth/gmail.settings.basic",
     ],
@@ -271,74 +271,27 @@ export async function getLatestThreadMessage(
   };
 }
 
-export interface ThreadParticipants {
-  /** Message-ID of the latest message (for In-Reply-To header) */
-  latestMessageId: string;
-  /** All unique From/To/CC/Reply-To addresses across the entire thread */
-  allParticipants: string[];
-}
-
 /**
- * Collects all participants from every message in a thread.
- * Participants who replied early but dropped off the CC chain are still included.
+ * Archive a Gmail thread — removes from inbox and marks as read.
+ * Used after sending a reply-all to immediately clear the thread,
+ * and by poll-classify to suppress replies in muted threads.
+ * Throws on failure — caller should catch if non-critical.
  */
-export async function getThreadParticipants(
-  threadId: string,
-  ceoEmail: string,
-): Promise<ThreadParticipants | null> {
-  const gmail = getGmailClient(getCeoEmail());
+export async function archiveThread(threadId: string): Promise<void> {
+  if (!/^[a-f0-9]+$/i.test(threadId)) {
+    throw new GmailError(`Invalid threadId format: ${threadId}`);
+  }
 
-  const res = await withRetry(() =>
-    gmail.users.threads.get({
+  const gmail = getGmailClient(getCeoEmail());
+  await withRetry(() =>
+    gmail.users.threads.modify({
       userId: "me",
       id: threadId,
-      format: "metadata",
-      metadataHeaders: ["Message-ID", "From", "To", "Cc", "Reply-To"],
+      requestBody: {
+        removeLabelIds: ["INBOX", "UNREAD"],
+      },
     }),
   );
-
-  const messages = res.data.messages;
-  if (!messages?.length) return null;
-
-  const self = ceoEmail.toLowerCase();
-  const seen = new Set<string>();
-  const participants: string[] = [];
-
-  function addAddress(addr: string) {
-    const lower = addr.toLowerCase();
-    if (lower === self || seen.has(lower)) return;
-    seen.add(lower);
-    participants.push(addr);
-  }
-
-  function extractAddresses(header: string) {
-    if (!header) return;
-    const parsed = parseAddressList(header);
-    if (!parsed) return;
-    for (const a of parsed) {
-      if (a.type === "mailbox" && a.address) addAddress(a.address);
-    }
-  }
-
-  for (const msg of messages) {
-    const headers = msg.payload?.headers ?? [];
-    const getHeader = (name: string) =>
-      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value ?? "";
-
-    extractAddresses(getHeader("From"));
-    extractAddresses(getHeader("Reply-To"));
-    extractAddresses(getHeader("To"));
-    extractAddresses(getHeader("Cc"));
-  }
-
-  // Get latest Message-ID for In-Reply-To
-  const lastHeaders = messages[messages.length - 1].payload?.headers ?? [];
-  const latestMessageId = lastHeaders
-    .find((h) => h.name?.toLowerCase() === "message-id")?.value ?? "";
-
-  if (!latestMessageId) return null;
-
-  return { latestMessageId, allParticipants: participants };
 }
 
 export async function getSignature(): Promise<string | null> {
@@ -407,7 +360,7 @@ export async function sendEmail(options: SendEmailOptions) {
     actualTo = redirectTo;
     actualCc = null;
     actualBcc = null;
-    redirectNote = `<div style="background:#fef3c7;padding:8px 12px;margin-bottom:16px;border-radius:4px;font-size:13px;"><strong>REDIRECTED</strong><br>Original To: ${escapeHtml(to)}<br>Original CC: ${escapeHtml(cc ?? "none")}<br>Original BCC: ${escapeHtml(bcc ?? "none")}</div>`;
+    redirectNote = `<div style="background:#fef3c7;padding:8px 12px;margin-bottom:16px;border-radius:4px;font-size:13px;"><strong>REDIRECTED</strong><br>Original To: ${escapeHtml(to)}<br>Original CC: ${escapeHtml(cc ?? "none")}</div>`;
   }
 
   const htmlBody = `${redirectNote}<div>${escapeHtml(body)}</div>${signature ? `<br><div>${signature}</div>` : ""}`;
