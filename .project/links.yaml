@@ -1,0 +1,11 @@
+# External-tool links for this project. See ~/wks/CLAUDE.md ("Project markers").
+# Harvested from this repo's `## Linear` block on 2026-07-06.
+# Print the workspace map:  bash ~/wks/claude-wks/bin/project-map.sh
+
+product: Debi's Dashboard
+
+linear:
+  project: Debi's Dashboard
+  id: 96ff9446-6bd6-4dc5-bb5c-1322d677f167
+  team: AI Labs
+  url: https://linear.app/wksusa/project/debis-dashboard-62fd6f1086f9
